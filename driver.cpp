@@ -250,6 +250,5 @@ not_found:
   if (pReturnCode) {
     *pReturnCode = vr::VRInitError_Init_InterfaceNotFound;
   }
-
   return nullptr;
 }

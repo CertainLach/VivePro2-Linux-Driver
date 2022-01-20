@@ -3656,7 +3656,7 @@ public:
 
 static const char *IVRWatchdogHost_Version = "IVRWatchdogHost_002";
 
-};
+}
 
 
 

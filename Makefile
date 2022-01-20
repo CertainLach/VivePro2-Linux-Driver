@@ -6,7 +6,7 @@ format:
 	clang-format -i driver.cpp -style=llvm
 
 driver_lighthouse_proxy.so: driver.cpp
-	gcc -DLIGHTHOUSE_BIN=\"$(LIGHTHOUSE_BIN)\" -shared -o $@ -fPIC $<
+	gcc --pedantic -Werror -DLIGHTHOUSE_BIN=\"$(LIGHTHOUSE_BIN)\" -shared -o $@ -fPIC $<
 
 build: driver_lighthouse_proxy.so
 
