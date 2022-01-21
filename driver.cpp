@@ -38,19 +38,47 @@ public:
   virtual void GetEyeOutputViewport(vr::EVREye eEye, uint32_t *pnX,
                                     uint32_t *pnY, uint32_t *pnWidth,
                                     uint32_t *pnHeight) {
+    DEBUG("GetEyeOutputViewport(%d)\n", eEye);
     real->GetEyeOutputViewport(eEye, pnX, pnY, pnWidth, pnHeight);
+    DEBUG("original driver returned %d %d %dx%d\n", *pnX, *pnY, *pnWidth,
+          *pnHeight);
+    *pnWidth = 2448 / 2;
+    *pnHeight = 1224;
+    *pnY = 0;
+    *pnX = eEye == vr::Eye_Left ? 0 : *pnWidth;
   }
   virtual void GetProjectionRaw(vr::EVREye eEye, float *pfLeft, float *pfRight,
                                 float *pfTop, float *pfBottom) {
+    DEBUG("GetProjectionRaw(%d)\n", eEye);
     real->GetProjectionRaw(eEye, pfLeft, pfRight, pfTop, pfBottom);
+    DEBUG("original driver returned %f %f %f %f\n", *pfLeft, *pfRight, *pfTop,
+          *pfBottom);
+    if (eEye == vr::Eye_Left) {
+      *pfLeft = -1.667393f;
+      *pfRight = 0.821432f;
+      *pfTop = -1.116938f;
+      *pfBottom = 1.122846;
+    } else {
+      *pfLeft = -0.822435;
+      *pfRight = 1.635135;
+      *pfTop = -1.138235;
+      *pfBottom = 1.107449;
+    }
+    DEBUG("proxy driver returned %f %f %f %f\n", *pfLeft, *pfRight, *pfTop,
+          *pfBottom);
   }
   virtual vr::DistortionCoordinates_t ComputeDistortion(vr::EVREye eEye,
                                                         float fU, float fV) {
 
     DEBUG("ComputeDistortion(%d, %f, %f)\n", eEye, fU, fV);
-    fV = 1. - fV;
-
-    return real->ComputeDistortion(eEye, fU, fV);
+    auto result = real->ComputeDistortion(eEye, fU, fV);
+    DEBUG("original driver returned {{%f, %f}, {%f, %f}, {%f, %f}}\n",
+          result.rfRed[0], result.rfRed[1], result.rfGreen[0],
+          result.rfGreen[1], result.rfBlue[0], result.rfBlue[1]);
+    // There is no such transform in driver_viveVR, but othervise image is
+    // flipped vertically
+    fV = 1.f - fV;
+    return {{fU, fV}, {fU, fV}, {fU, fV}};
   }
 };
 
