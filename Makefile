@@ -1,16 +1,18 @@
 .PHONY: clean build install enable disable
 
+LIGHTHOUSE_BIN:=$(HOME)/.local/share/Steam/steamapps/common/SteamVR/drivers/lighthouse/bin/linux64
+LENS_SERVER_DIST:=$(PWD)/lensServer/dist
+WINE:=`which wine`
+
 clean:
 	rm -f driver_lighthouse_proxy.so
 format:
 	clang-format -i driver.cpp -style=llvm
 
 driver_lighthouse_proxy.so: driver.cpp
-	gcc --pedantic -Werror -DLIGHTHOUSE_BIN=\"$(LIGHTHOUSE_BIN)\" -shared -o $@ -fPIC $<
+	g++ --pedantic -std=c++2a -Werror -DLIGHTHOUSE_BIN=\"$(LIGHTHOUSE_BIN)\" -DLENS_SERVER_DIST=\"$(LENS_SERVER_DIST)\" -DWINE=\"$(WINE)\" -shared -o $@ -fPIC $<
 
 build: driver_lighthouse_proxy.so
-
-LIGHTHOUSE_BIN:=$(HOME)/.local/share/Steam/steamapps/common/SteamVR/drivers/lighthouse/bin/linux64
 
 install: build
 	cp $(PWD)/driver_lighthouse_proxy.so $(LIGHTHOUSE_BIN)/

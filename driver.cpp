@@ -1,6 +1,10 @@
+#include "lens_server.h"
 #include "openvr_driver.h"
+#include <csignal>
 #include <cstring>
 #include <dlfcn.h>
+#include <sys/prctl.h>
+#include <unistd.h>
 
 #define DEBUG(...)                                                             \
   do {                                                                         \
@@ -11,6 +15,9 @@
 typedef void *(*HmdDriverFactory_ty)(const char *pInterfaceName,
                                      int *pReturnCode);
 HmdDriverFactory_ty HmdDriverFactoryReal;
+
+static int lens_server_in;
+static int lens_server_out;
 
 class CVRDisplayComponent : public vr::IVRDisplayComponent {
 public:
@@ -50,35 +57,25 @@ public:
   virtual void GetProjectionRaw(vr::EVREye eEye, float *pfLeft, float *pfRight,
                                 float *pfTop, float *pfBottom) {
     DEBUG("GetProjectionRaw(%d)\n", eEye);
-    real->GetProjectionRaw(eEye, pfLeft, pfRight, pfTop, pfBottom);
-    DEBUG("original driver returned %f %f %f %f\n", *pfLeft, *pfRight, *pfTop,
-          *pfBottom);
-    if (eEye == vr::Eye_Left) {
-      *pfLeft = -1.667393f;
-      *pfRight = 0.821432f;
-      *pfTop = -1.116938f;
-      *pfBottom = 1.122846;
-    } else {
-      *pfLeft = -0.822435;
-      *pfRight = 1.635135;
-      *pfTop = -1.138235;
-      *pfBottom = 1.107449;
-    }
-    DEBUG("proxy driver returned %f %f %f %f\n", *pfLeft, *pfRight, *pfTop,
-          *pfBottom);
+    ServerInputProjectionRaw input = {1, eEye};
+    write(lens_server_in, &input, sizeof(ServerInputProjectionRaw));
+    ServerOutputProjectionRaw output;
+    read(lens_server_out, &output, sizeof(ServerOutputProjectionRaw));
+    *pfLeft = output.left;
+    *pfRight = output.right;
+    *pfTop = output.top;
+    *pfBottom = output.bottom;
+    DEBUG("LRTB: %f %f %f %f\n", *pfLeft, *pfRight, *pfTop, *pfBottom);
   }
   virtual vr::DistortionCoordinates_t ComputeDistortion(vr::EVREye eEye,
                                                         float fU, float fV) {
-
-    DEBUG("ComputeDistortion(%d, %f, %f)\n", eEye, fU, fV);
-    auto result = real->ComputeDistortion(eEye, fU, fV);
-    DEBUG("original driver returned {{%f, %f}, {%f, %f}, {%f, %f}}\n",
-          result.rfRed[0], result.rfRed[1], result.rfGreen[0],
-          result.rfGreen[1], result.rfBlue[0], result.rfBlue[1]);
-    // There is no such transform in driver_viveVR, but othervise image is
-    // flipped vertically
-    fV = 1.f - fV;
-    return {{fU, fV}, {fU, fV}, {fU, fV}};
+    ServerInputDistort input = {0, eEye, fU, fV};
+    write(lens_server_in, &input, sizeof(ServerInputDistort));
+    ServerOutputDistort output;
+    read(lens_server_out, &output, sizeof(ServerOutputDistort));
+    return {{output.red[0], output.red[1]},
+            {output.green[0], output.green[1]},
+            {output.blue[0], output.blue[1]}};
   }
 };
 
@@ -258,6 +255,39 @@ HmdDriverFactory(const char *pInterfaceName, int *pReturnCode) {
       goto not_found;
     }
     DEBUG("initialized real factory\n");
+  }
+  if (lens_server_out == 0) {
+    DEBUG("starting lens server from %s\n", LENS_SERVER_DIST);
+    DEBUG("start command = " WINE " " LENS_SERVER_DIST "/lens-server.exe\n");
+    int inpipefd[2];
+    int outpipefd[2];
+    pipe(inpipefd);
+    pipe(outpipefd);
+    if (fork() == 0) {
+      DEBUG("hello from lens process\n");
+      dup2(inpipefd[0], STDIN_FILENO);
+      dup2(outpipefd[1], STDOUT_FILENO);
+      prctl(PR_SET_PDEATHSIG, SIGTERM);
+
+      execl(WINE, "wine", LENS_SERVER_DIST "/lens-server.exe", (char *)nullptr);
+      exit(1);
+    }
+
+    DEBUG("testing lens server\n");
+    ServerInputDistort input = {0, 0, 0.0, 0.0};
+    if (write(inpipefd[1], &input, sizeof(ServerInputDistort)) == -1) {
+      DEBUG("write failed\n");
+      goto not_found;
+    }
+
+    ServerOutputDistort output;
+    if (read(outpipefd[0], &output, sizeof(ServerOutputDistort)) == -1) {
+      DEBUG("read failed\n");
+      goto not_found;
+    }
+    DEBUG("request completed, assuming lens server is fine\n");
+    lens_server_in = inpipefd[1];
+    lens_server_out = outpipefd[0];
   }
 
   if (strcmp(pInterfaceName, vr::IServerTrackedDeviceProvider_Version) == 0) {
