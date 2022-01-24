@@ -19,6 +19,21 @@ HmdDriverFactory_ty HmdDriverFactoryReal;
 static int lens_server_in;
 static int lens_server_out;
 
+int read_exact(int fd, void *buf, size_t nbytes) {
+  while (nbytes > 0) {
+    int res = read(fd, buf, nbytes);
+    if (res == -1)
+      return -1;
+    else if (res == 0)
+      return -1;
+    nbytes -= res;
+    buf = (void *)((size_t)buf + res);
+  }
+  return 0;
+}
+
+static pthread_mutex_t cs_mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+
 class CVRDisplayComponent : public vr::IVRDisplayComponent {
 public:
   CVRDisplayComponent(vr::IVRDisplayComponent *_real) : real(_real) {}
@@ -56,11 +71,16 @@ public:
   }
   virtual void GetProjectionRaw(vr::EVREye eEye, float *pfLeft, float *pfRight,
                                 float *pfTop, float *pfBottom) {
-    DEBUG("GetProjectionRaw(%d)\n", eEye);
+    pthread_mutex_lock(&cs_mutex);
     ServerInputProjectionRaw input = {1, eEye};
-    write(lens_server_in, &input, sizeof(ServerInputProjectionRaw));
+    ASSERT_FATAL(
+        write(lens_server_in, &input, sizeof(ServerInputProjectionRaw)) != -1,
+        "write");
     ServerOutputProjectionRaw output;
-    read(lens_server_out, &output, sizeof(ServerOutputProjectionRaw));
+    ASSERT_FATAL(read_exact(lens_server_out, &output,
+                            sizeof(ServerOutputProjectionRaw)) != -1,
+                 "read");
+    pthread_mutex_unlock(&cs_mutex);
     *pfLeft = output.left;
     *pfRight = output.right;
     *pfTop = output.top;
@@ -69,10 +89,16 @@ public:
   }
   virtual vr::DistortionCoordinates_t ComputeDistortion(vr::EVREye eEye,
                                                         float fU, float fV) {
-    ServerInputDistort input = {0, eEye, fU, fV};
-    write(lens_server_in, &input, sizeof(ServerInputDistort));
+    pthread_mutex_lock(&cs_mutex);
+    ServerInputDistort input = {0, eEye, fU, INVERT_MATRIX ? 1.0f - fV : fV};
+    ASSERT_FATAL(write(lens_server_in, &input, sizeof(ServerInputDistort)) !=
+                     -1,
+                 "write");
     ServerOutputDistort output;
-    read(lens_server_out, &output, sizeof(ServerOutputDistort));
+    ASSERT_FATAL(
+        read_exact(lens_server_out, &output, sizeof(ServerOutputDistort)) != -1,
+        "read");
+    pthread_mutex_unlock(&cs_mutex);
     return {{output.red[0], output.red[1]},
             {output.green[0], output.green[1]},
             {output.blue[0], output.blue[1]}};
