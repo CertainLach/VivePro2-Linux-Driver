@@ -1,8 +1,13 @@
-use byteorder::{ReadBytesExt, WriteBytesExt, LE};
+use byteorder::{NativeEndian as NE, ReadBytesExt, WriteBytesExt};
 use libloading::os::windows::{Library, Symbol};
 use std::ffi::OsStr;
 use std::io::{self, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
+
+#[link(name = "msvcrt")]
+extern "C" {
+    fn _setmode(fd: u32, mode: u32) -> i32;
+}
 
 #[derive(Debug)]
 struct DistortOutput {
@@ -12,12 +17,12 @@ struct DistortOutput {
 }
 impl Output for DistortOutput {
     fn write<W: Write>(self, w: &mut W) {
-        w.write_f32::<LE>(self.red[0]).unwrap();
-        w.write_f32::<LE>(self.red[1]).unwrap();
-        w.write_f32::<LE>(self.green[0]).unwrap();
-        w.write_f32::<LE>(self.green[1]).unwrap();
-        w.write_f32::<LE>(self.blue[0]).unwrap();
-        w.write_f32::<LE>(self.blue[1]).unwrap();
+        w.write_f32::<NE>(self.red[0]).unwrap();
+        w.write_f32::<NE>(self.red[1]).unwrap();
+        w.write_f32::<NE>(self.green[0]).unwrap();
+        w.write_f32::<NE>(self.green[1]).unwrap();
+        w.write_f32::<NE>(self.blue[0]).unwrap();
+        w.write_f32::<NE>(self.blue[1]).unwrap();
     }
 }
 #[derive(Debug)]
@@ -29,10 +34,10 @@ struct LeftRightTopBottom {
 }
 impl Output for LeftRightTopBottom {
     fn write<W: Write>(self, w: &mut W) {
-        w.write_f32::<LE>(self.left).unwrap();
-        w.write_f32::<LE>(self.right).unwrap();
-        w.write_f32::<LE>(self.top).unwrap();
-        w.write_f32::<LE>(self.bottom).unwrap();
+        w.write_f32::<NE>(self.left).unwrap();
+        w.write_f32::<NE>(self.right).unwrap();
+        w.write_f32::<NE>(self.top).unwrap();
+        w.write_f32::<NE>(self.bottom).unwrap();
     }
 }
 
@@ -165,7 +170,7 @@ impl Input {
         match r.read_u8().unwrap() {
             0 => Self::Distort(
                 Eye::read(r),
-                [r.read_f32::<LE>().unwrap(), r.read_f32::<LE>().unwrap()],
+                [r.read_f32::<NE>().unwrap(), r.read_f32::<NE>().unwrap()],
             ),
             1 => Self::ProjectionRaw(Eye::read(r)),
             _ => panic!(),
@@ -180,6 +185,7 @@ trait Output {
 // center pos - to int
 // scale ratio - to int
 fn main() {
+    eprintln!("hello from lens server");
     let mut exedir = std::env::current_exe().unwrap();
     exedir.pop();
 
@@ -189,12 +195,16 @@ fn main() {
 
     let mut distortion_path = exedir.clone();
     distortion_path.push("LibLensDistortion.dll");
-    let lib = unsafe { LensLibrary::new(distortion_path, (1632, 1632), &config) };
+    let lib = unsafe { LensLibrary::new(distortion_path, (2448, 2448), &config) };
+
     let stdin = io::stdin();
     let mut stdin = stdin.lock();
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
+    eprintln!("server ready");
+    assert_ne!(unsafe { _setmode(0, 0x8000) }, -1);
+    assert_ne!(unsafe { _setmode(1, 0x8000) }, -1);
     loop {
         match Input::read(&mut stdin) {
             Input::Distort(eye, uv) => lib.distort(eye, uv).write(&mut stdout),
