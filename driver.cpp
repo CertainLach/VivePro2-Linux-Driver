@@ -7,6 +7,11 @@ HmdDriverFactory_ty HmdDriverFactoryReal;
 static int lens_server_in;
 static int lens_server_out;
 
+// Replace with false if textures are located on wrong sides of meshes
+#define INVERT_MATRIX (true)
+#define WIDTH (2448)
+#define HEIGHT (1224)
+
 int read_exact(int fd, void *buf, size_t nbytes) {
   while (nbytes > 0) {
     int res = read(fd, buf, nbytes);
@@ -34,8 +39,8 @@ public:
           *pnHeight);
     *pnX = 0;
     *pnY = 0;
-    *pnWidth = 2448;
-    *pnHeight = 1224;
+    *pnWidth = WIDTH;
+    *pnHeight = HEIGHT;
     DEBUG("proxy driver returned %d %d %dx%d\n", *pnX, *pnY, *pnWidth,
           *pnHeight);
   }
@@ -52,8 +57,8 @@ public:
     real->GetEyeOutputViewport(eEye, pnX, pnY, pnWidth, pnHeight);
     DEBUG("original driver returned %d %d %dx%d\n", *pnX, *pnY, *pnWidth,
           *pnHeight);
-    *pnWidth = 2448 / 2;
-    *pnHeight = 1224;
+    *pnWidth = WIDTH / 2;
+    *pnHeight = HEIGHT;
     *pnY = 0;
     *pnX = eEye == vr::Eye_Left ? 0 : *pnWidth;
   }
@@ -71,8 +76,13 @@ public:
     pthread_mutex_unlock(&cs_mutex);
     *pfLeft = output.left;
     *pfRight = output.right;
-    *pfTop = output.top;
-    *pfBottom = output.bottom;
+    if (INVERT_MATRIX) {
+      *pfTop = output.bottom;
+      *pfBottom = output.top;
+    } else {
+      *pfTop = output.top;
+      *pfBottom = output.bottom;
+    }
     DEBUG("LRTB: %f %f %f %f\n", *pfLeft, *pfRight, *pfTop, *pfBottom);
   }
   virtual vr::DistortionCoordinates_t ComputeDistortion(vr::EVREye eEye,
