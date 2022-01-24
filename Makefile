@@ -8,9 +8,8 @@ clean:
 	rm -f driver_lighthouse_proxy.so
 format:
 	clang-format -i driver.cpp -style=llvm
+	clang-format -i driver.h -style=llvm
 
-driver_lighthouse_proxy.so: driver.cpp
-	g++ --pedantic -std=c++2a -Werror -DLIGHTHOUSE_BIN=\"$(LIGHTHOUSE_BIN)\" -DLENS_SERVER_DIST=\"$(LENS_SERVER_DIST)\" -DWINE=\"$(WINE)\" -shared -o $@ -fPIC $<
 
 build: driver_lighthouse_proxy.so
 
@@ -25,3 +24,9 @@ enable: install
 disable:
 	rm $(LIGHTHOUSE_BIN)/driver_lighthouse.so
 	ln -s $(LIGHTHOUSE_BIN)/driver_lighthouse_real.so $(LIGHTHOUSE_BIN)/driver_lighthouse.so
+
+driver_lighthouse_proxy.so: driver.cpp
+	g++ \
+		--pedantic -fpermissive -std=c++2a -Werror \
+		-DLIGHTHOUSE_BIN=\"$(LIGHTHOUSE_BIN)\" -DLENS_SERVER_DIST=\"$(LENS_SERVER_DIST)\" -DWINE=\"$(WINE)\" \
+		-shared -static-libgcc -static-libstdc++ -ldl -o $@ -fPIC $<
