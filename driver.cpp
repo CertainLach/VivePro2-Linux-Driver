@@ -1,16 +1,4 @@
-#include "lens_server.h"
-#include "openvr_driver.h"
-#include <csignal>
-#include <cstring>
-#include <dlfcn.h>
-#include <sys/prctl.h>
-#include <unistd.h>
-
-#define DEBUG(...)                                                             \
-  do {                                                                         \
-    fprintf(stderr, "LIGHTHOUSE PROXY " __VA_ARGS__);                          \
-    fflush(stderr);                                                            \
-  } while (0)
+#include "driver.h"
 
 typedef void *(*HmdDriverFactory_ty)(const char *pInterfaceName,
                                      int *pReturnCode);
@@ -270,47 +258,40 @@ HmdDriverFactory(const char *pInterfaceName, int *pReturnCode) {
     DEBUG("loading library from %s\n", LIGHTHOUSE_BIN);
     void *library =
         dlopen(LIGHTHOUSE_BIN "/driver_lighthouse_real.so", RTLD_NOW);
-    if (library == nullptr) {
-      DEBUG("library not found\n");
-      goto not_found;
-    }
+    ASSERT_RET(library != nullptr, "library not found");
     HmdDriverFactoryReal =
         (HmdDriverFactory_ty)dlsym(library, "HmdDriverFactory");
-    if (HmdDriverFactoryReal == nullptr) {
-      DEBUG("symbol not found\n");
-      goto not_found;
-    }
-    DEBUG("initialized real factory\n");
+    ASSERT_RET(HmdDriverFactoryReal != nullptr, "symbol not found");
+    DEBUG("initialized real factory");
   }
   if (lens_server_out == 0) {
-    DEBUG("starting lens server from %s\n", LENS_SERVER_DIST);
-    DEBUG("start command = " WINE " " LENS_SERVER_DIST "/lens-server.exe\n");
+    DEBUG("starting lens server from %s", LENS_SERVER_DIST);
     int inpipefd[2];
     int outpipefd[2];
-    pipe(inpipefd);
-    pipe(outpipefd);
+    ASSERT_RET(pipe(inpipefd) == 0, "pipe failed");
+    ASSERT_RET(pipe(outpipefd) == 0, "pipe failed");
     if (fork() == 0) {
-      DEBUG("hello from lens process\n");
+      DEBUG("hello from lens process");
       dup2(inpipefd[0], STDIN_FILENO);
       dup2(outpipefd[1], STDOUT_FILENO);
       prctl(PR_SET_PDEATHSIG, SIGTERM);
 
-      execl(WINE, "wine", LENS_SERVER_DIST "/lens-server.exe", (char *)nullptr);
+      DEBUG("executing [%s %s]", WINE, LENS_SERVER_DIST "/lens-server.exe");
+      const char *env[] = {"WINEDEBUG=-all", NULL};
+      execle(WINE, "wine", LENS_SERVER_DIST "/lens-server.exe", (char *)nullptr,
+             env);
       exit(1);
     }
 
     DEBUG("testing lens server\n");
     ServerInputDistort input = {0, 0, 0.0, 0.0};
-    if (write(inpipefd[1], &input, sizeof(ServerInputDistort)) == -1) {
-      DEBUG("write failed\n");
-      goto not_found;
-    }
+    ASSERT_RET(write(inpipefd[1], &input, sizeof(ServerInputDistort)) != -1,
+               "write failed");
 
     ServerOutputDistort output;
-    if (read(outpipefd[0], &output, sizeof(ServerOutputDistort)) == -1) {
-      DEBUG("read failed\n");
-      goto not_found;
-    }
+    ASSERT_RET(read_exact(outpipefd[0], &output, sizeof(ServerOutputDistort)) !=
+                   -1,
+               "read failed");
     DEBUG("request completed, assuming lens server is fine\n");
     lens_server_in = inpipefd[1];
     lens_server_out = outpipefd[0];
@@ -329,7 +310,6 @@ HmdDriverFactory(const char *pInterfaceName, int *pReturnCode) {
     return server_device_provider;
   }
 
-not_found:
   DEBUG("requested unknown interface = %s\n", pInterfaceName);
   if (pReturnCode) {
     *pReturnCode = vr::VRInitError_Init_InterfaceNotFound;
