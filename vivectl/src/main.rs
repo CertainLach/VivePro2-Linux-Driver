@@ -87,16 +87,16 @@ enum LedState {
 impl LedState {
     fn magic(&self) -> [u8; 64] {
         match self {
-            Self::On => hex!("
+            Self::On => hex! {"
                 0478293800000000000002000000000000000000000000000000000000000000
                 000000000000000000000000007a000000000000000000000000000000000000
-            "),
-            Self::Sleep => hex!("
+            "},
+            Self::Sleep => hex! {"
                 0478293800000000000002000000000000000000000000000000000000000000
                 000000000000000000000000007b000000000000000000000000000000000000
                 //                         ^- vive console also sends c here, but i see no difference between b and c
                 //                            perhaps brightness, but hardware only supports 2 levels?
-            "),
+            "},
             // Also used on bootup, i see no effect
             // Self::Idk => hex!("
             //     0478293800000000000000000000000000000000000000000000000000000000
@@ -118,7 +118,7 @@ fn reset_dp(device: &HidDevice) -> Result<()> {
 /// Hardcoded in official software too
 #[derive(Clone, Copy, ArgEnum)]
 #[repr(u8)]
-enum Mode {
+enum Resolution {
     R2448x1224f90 = 0,
     R2448x1224f120 = 1,
     R3264x1632f90 = 2,
@@ -127,11 +127,29 @@ enum Mode {
     R4896x2448f120 = 5,
 }
 
-fn set_mode(device: &HidDevice, mode: Mode) -> Result<()> {
+fn set_resolution(device: &HidDevice, resolution: Resolution) -> Result<()> {
     // If not sent - something is wrong
     send_str_report(&device, false, b"wireless,0")?;
-    send_str_report(&device, false, &format!("dtd,{}", mode as u8).as_bytes())?;
+    send_str_report(
+        &device,
+        false,
+        &format!("dtd,{}", resolution as u8).as_bytes(),
+    )?;
     Ok(())
+}
+
+fn set_mode(device: &HidDevice, mst: bool, dsc: bool, amdgpu: bool) -> Result<()> {
+    send_str_report(
+        &device,
+        false,
+        &format!(
+            "mode,{},{},{}",
+            if mst { '1' } else { '0' },
+            if dsc { '1' } else { '0' },
+            if amdgpu { '1' } else { '0' }
+        )
+        .as_bytes(),
+    )
 }
 
 #[derive(Clone, Copy, ArgEnum)]
@@ -146,12 +164,18 @@ enum Args {
     /// Reconnect HMD
     ResetDp,
     /// Restart HMD with new reported resolution
-    SetMode {
-        #[clap(arg_enum)]
-        mode: Mode,
-        /// vive console does this, but dtd command already performs reset
+    Mode {
+        /// Multi-stream-transport
         #[clap(long)]
-        reset: bool,
+        mst: bool,
+        /// Display stream compression
+        #[clap(long)]
+        dsc: bool,
+        /// ?
+        #[clap(long)]
+        amdgpu: bool,
+        #[clap(arg_enum)]
+        resolution: Resolution,
     },
     /// Change display brightness
     SetBrightness {
@@ -167,6 +191,11 @@ enum Args {
         #[clap(arg_enum)]
         state: LedState,
     },
+    Payload {
+        #[clap(long)]
+        alt: bool,
+        value: String,
+    },
     /// Testing only, performs full initialization sequence (captured on windows)
     Magic,
 }
@@ -177,11 +206,16 @@ fn main() -> Result<()> {
     let device = manager.open(0x0bb4, 0x0342)?;
     match args {
         Args::ResetDp => reset_dp(&device)?,
-        Args::SetMode { mode, reset } => {
-            set_mode(&device, mode)?;
-            if reset {
-                reset_dp(&device)?;
-            }
+        Args::Mode {
+            resolution,
+            mst,
+            dsc,
+            amdgpu,
+        } => {
+            set_mode(&device, mst, dsc, amdgpu)?;
+            set_resolution(&device, resolution)?;
+            // set_mode does strage things without DP reset
+            reset_dp(&device)?;
             // TODO: Wait for device to reappear?
         }
         Args::SetBrightness { value } => {
@@ -193,56 +227,47 @@ fn main() -> Result<()> {
         Args::Led { state } => {
             set_led(&device, state)?;
         }
+        Args::Payload { alt, value } => send_str_report(&device, alt, value.as_bytes())?,
         Args::Magic => {
             send_magic_report(
                 &device,
-                &hex!(
-                    "
-                0478293801000000000000000000000000000000000000000000000000000000
-                0000000000000000000000000000000000000000000000000000000000000000
-            "
-                ),
+                &hex! {"
+                    0478293801000000000000000000000000000000000000000000000000000000
+                    0000000000000000000000000000000000000000000000000000000000000000
+                "},
             )?;
             send_magic_report(
                 &device,
-                &hex!(
-                    "
-                0478293801000000000000000100000000000000000000000000000000000000
-                0000000000000000000000000000000000000000000000000000000000000000
-            "
-                ),
+                &hex! {"
+                    0478293801000000000000000100000000000000000000000000000000000000
+                    0000000000000000000000000000000000000000000000000000000000000000
+                "},
             )?;
             send_magic_report(
                 &device,
-                &hex!(
-                    "
-                04782938010000000000000001725f766976655fb2551e4d6ff1cf1188cb0011
-                11000030686463fa9b020000b8dc63fa9b020000b2551e4d6ff1cf1100000000
-            "
-                ),
+                &hex! {"
+                    04782938010000000000000001725f766976655fb2551e4d6ff1cf1188cb0011
+                    11000030686463fa9b020000b8dc63fa9b020000b2551e4d6ff1cf1100000000
+                "},
             )?;
             set_led(&device, LedState::On)?;
             set_brightness(&device, Brightness(130))?;
             send_magic_report(
                 &device,
-                &hex!(
-                    "
-                0478293808000000000000000000000100000000000000000000000000000000
-                0000000000000000000000000000000000000000000000000000000000000000
-            "
-                ),
+                &hex! {"
+                    0478293808000000000000000000000100000000000000000000000000000000
+                    0000000000000000000000000000000000000000000000000000000000000000
+                "},
             )?;
             toggle_mic_noise_cancel(&device, false)?;
             send_magic_report(
                 &device,
-                &hex!(
-                    "
-                0478293800000000000000000000000000000000000000000000000000000000
-                0000000000000000000000000000000000000000000000000000000000000000
-            "
-                ),
+                &hex! {"
+                    0478293800000000000000000000000000000000000000000000000000000000
+                    0000000000000000000000000000000000000000000000000000000000000000
+                "},
             )?;
-            set_mode(&device, Mode::R2448x1224f90)?;
+            set_resolution(&device, Resolution::R2448x1224f90)?;
             reset_dp(&device)?;
         }
     }
