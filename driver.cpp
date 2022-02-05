@@ -1,4 +1,5 @@
 #include "driver.h"
+#include "discover_resolution.h"
 
 typedef void *(*HmdDriverFactory_ty)(const char *pInterfaceName,
                                      int *pReturnCode);
@@ -9,8 +10,6 @@ static int lens_server_out;
 
 // Replace with false if textures are located on wrong sides of meshes
 #define INVERT_MATRIX (true)
-#define WIDTH (2448)
-#define HEIGHT (1224)
 
 int read_exact(int fd, void *buf, size_t nbytes) {
   while (nbytes > 0) {
@@ -29,7 +28,8 @@ static pthread_mutex_t cs_mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 
 class CVRDisplayComponent : public vr::IVRDisplayComponent {
 public:
-  CVRDisplayComponent(vr::IVRDisplayComponent *_real) : real(_real) {}
+  CVRDisplayComponent(vr::IVRDisplayComponent *_real) : real(_real), resolution(discover_resolution()) {}
+  Resolution resolution;
   vr::IVRDisplayComponent *real;
   virtual void GetWindowBounds(int32_t *pnX, int32_t *pnY, uint32_t *pnWidth,
                                uint32_t *pnHeight) {
@@ -39,8 +39,8 @@ public:
           *pnHeight);
     *pnX = 0;
     *pnY = 0;
-    *pnWidth = WIDTH;
-    *pnHeight = HEIGHT;
+    *pnWidth = resolution.width;
+    *pnHeight = resolution.height;
     DEBUG("proxy driver returned %d %d %dx%d\n", *pnX, *pnY, *pnWidth,
           *pnHeight);
   }
@@ -57,8 +57,8 @@ public:
     real->GetEyeOutputViewport(eEye, pnX, pnY, pnWidth, pnHeight);
     DEBUG("original driver returned %d %d %dx%d\n", *pnX, *pnY, *pnWidth,
           *pnHeight);
-    *pnWidth = WIDTH / 2;
-    *pnHeight = HEIGHT;
+    *pnWidth = resolution.width / 2;
+    *pnHeight = resolution.height;
     *pnY = 0;
     *pnX = eEye == vr::Eye_Left ? 0 : *pnWidth;
   }

@@ -25,8 +25,8 @@ disable:
 	rm $(LIGHTHOUSE_BIN)/driver_lighthouse.so
 	ln -s $(LIGHTHOUSE_BIN)/driver_lighthouse_real.so $(LIGHTHOUSE_BIN)/driver_lighthouse.so
 
-driver_lighthouse_proxy.so: driver.cpp
+driver_lighthouse_proxy.so: driver.cpp discover_resolution.cpp
 	g++ \
 		--pedantic -fpermissive -std=c++2a -Werror \
 		-DLIGHTHOUSE_BIN=\"$(LIGHTHOUSE_BIN)\" -DLENS_SERVER_DIST=\"$(LENS_SERVER_DIST)\" -DWINE=\"$(WINE)\" \
-		-shared -static-libgcc -static-libstdc++ -ldl -o $@ -fPIC $<
+		-shared -static-libgcc -static-libstdc++ -ldl -o $@ -fPIC $^
