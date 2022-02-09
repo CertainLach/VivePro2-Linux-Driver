@@ -1,0 +1,111 @@
+From 1a76a6ec03d7b8d821d2da36fa4366b487a4e51b Mon Sep 17 00:00:00 2001
+From: Yaroslav Bolyukin <iam@lach.pw>
+Date: Wed, 9 Feb 2022 22:30:24 +0300
+Subject: [PATCH 1/2] edid: parse DRM VESA dsc bpp target
+
+I can't find this field in spec, but `edid-decode` supports it:
+https://git.linuxtv.org/edid-decode.git/tree/parse-displayid-block.cpp#n1572
+And it is also described in wikipedia:
+https://en.wikipedia.org/wiki/DisplayID#0x7E_Vendor-specific_data
+
+Signed-off-by: Yaroslav Bolyukin <iam@lach.pw>
+---
+ drivers/gpu/drm/drm_edid.c  | 31 ++++++++++++++++++++-----------
+ include/drm/drm_connector.h |  6 ++++++
+ include/drm/drm_displayid.h |  4 ++++
+ 3 files changed, 30 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/gpu/drm/drm_edid.c b/drivers/gpu/drm/drm_edid.c
+index 5f2ae5bfa..58f9657ae 100644
+--- a/drivers/gpu/drm/drm_edid.c
++++ b/drivers/gpu/drm/drm_edid.c
+@@ -5245,7 +5245,7 @@ static void drm_parse_vesa_mso_data(struct drm_connector *connector,
+ 	if (oui(vesa->oui[0], vesa->oui[1], vesa->oui[2]) != VESA_IEEE_OUI)
+ 		return;
+ 
+-	if (sizeof(*vesa) != sizeof(*block) + block->num_bytes) {
++	if (block->num_bytes < 5) {
+ 		drm_dbg_kms(connector->dev, "Unexpected VESA vendor block size\n");
+ 		return;
+ 	}
+@@ -5265,20 +5265,29 @@ static void drm_parse_vesa_mso_data(struct drm_connector *connector,
+ 		break;
+ 	}
+ 
+-	if (!info->mso_stream_count) {
+-		info->mso_pixel_overlap = 0;
+-		return;
++	info->mso_pixel_overlap = 0;
++
++	if (info->mso_stream_count) {
++		info->mso_pixel_overlap = FIELD_GET(DISPLAYID_VESA_MSO_OVERLAP, vesa->mso);
++		if (info->mso_pixel_overlap > 8) {
++			drm_dbg_kms(connector->dev, "Reserved MSO pixel overlap value %u\n",
++				info->mso_pixel_overlap);
++			info->mso_pixel_overlap = 8;
++		}
++
++		drm_dbg_kms(connector->dev, "MSO stream count %u, pixel overlap %u\n",
++			info->mso_stream_count, info->mso_pixel_overlap);
+ 	}
+ 
+-	info->mso_pixel_overlap = FIELD_GET(DISPLAYID_VESA_MSO_OVERLAP, vesa->mso);
+-	if (info->mso_pixel_overlap > 8) {
+-		drm_dbg_kms(connector->dev, "Reserved MSO pixel overlap value %u\n",
+-			    info->mso_pixel_overlap);
+-		info->mso_pixel_overlap = 8;
++	if (block->num_bytes < 7) {
++		/* DSC bpp is optional */
++		return;
+ 	}
+ 
+-	drm_dbg_kms(connector->dev, "MSO stream count %u, pixel overlap %u\n",
+-		    info->mso_stream_count, info->mso_pixel_overlap);
++	info->dp_dsc_bpp = FIELD_GET(DISPLAYID_VESA_DSC_BPP_INT, vesa->dsc_bpp_int) * 16 +
++		FIELD_GET(DISPLAYID_VESA_DSC_BPP_FRACT, vesa->dsc_bpp_fract);
++	
++	drm_dbg_kms(connector->dev, "DSC bits per pixel %u\n", info->dp_dsc_bpp);
+ }
+ 
+ static void drm_update_mso(struct drm_connector *connector, const struct edid *edid)
+diff --git a/include/drm/drm_connector.h b/include/drm/drm_connector.h
+index b501d0bad..7185ec21f 100644
+--- a/include/drm/drm_connector.h
++++ b/include/drm/drm_connector.h
+@@ -628,6 +628,12 @@ struct drm_display_info {
+ 	 * @mso_pixel_overlap: eDP MSO segment pixel overlap, 0-8 pixels.
+ 	 */
+ 	u8 mso_pixel_overlap;
++
++	/**
++	 * @dp_dsc_bpp: DP Display-Stream-Compression (DSC) timing's target
++	 * DST bits per pixel in 6.4 fixed point format. 0 means undefined
++	 */
++	u16 dp_dsc_bpp;
+ };
+ 
+ int drm_display_info_set_bus_formats(struct drm_display_info *info,
+diff --git a/include/drm/drm_displayid.h b/include/drm/drm_displayid.h
+index 7ffbd9f7b..1be6deddc 100644
+--- a/include/drm/drm_displayid.h
++++ b/include/drm/drm_displayid.h
+@@ -131,12 +131,16 @@ struct displayid_detailed_timing_block {
+ 
+ #define DISPLAYID_VESA_MSO_OVERLAP	GENMASK(3, 0)
+ #define DISPLAYID_VESA_MSO_MODE		GENMASK(6, 5)
++#define DISPLAYID_VESA_DSC_BPP_INT	GENMASK(5, 0)
++#define DISPLAYID_VESA_DSC_BPP_FRACT GENMASK(3, 0)
+ 
+ struct displayid_vesa_vendor_specific_block {
+ 	struct displayid_block base;
+ 	u8 oui[3];
+ 	u8 data_structure_type;
+ 	u8 mso;
++	u8 dsc_bpp_int;
++	u8 dsc_bpp_fract;
+ } __packed;
+ 
+ /* DisplayID iteration */
+-- 
+2.34.1
+
