@@ -1,4 +1,4 @@
-From 3c2b8455e359368d9c1b35235cdc5355bf0414ac Mon Sep 17 00:00:00 2001
+From 41799bc71c27218a1587862b9179084be672e6eb Mon Sep 17 00:00:00 2001
 From: Yaroslav Bolyukin <iam@lach.pw>
 Date: Wed, 9 Feb 2022 22:31:34 +0300
 Subject: [PATCH 2/2] drm/amd: use fixed dsc bits-per-pixel from edid

@@ -1,12 +1,9 @@
-From 1a76a6ec03d7b8d821d2da36fa4366b487a4e51b Mon Sep 17 00:00:00 2001
+From b4bece9f3f5e11823cf94bcfbb1d83189af63dc6 Mon Sep 17 00:00:00 2001
 From: Yaroslav Bolyukin <iam@lach.pw>
 Date: Wed, 9 Feb 2022 22:30:24 +0300
 Subject: [PATCH 1/2] edid: parse DRM VESA dsc bpp target
 
-I can't find this field in spec, but `edid-decode` supports it:
-https://git.linuxtv.org/edid-decode.git/tree/parse-displayid-block.cpp#n1572
-And it is also described in wikipedia:
-https://en.wikipedia.org/wiki/DisplayID#0x7E_Vendor-specific_data
+As per DisplayID v2.0 Errata E9 spec
 
 Signed-off-by: Yaroslav Bolyukin <iam@lach.pw>
 ---
