@@ -1,5 +1,3 @@
-#![feature(stdio_locked)]
-
 use std::{
 	io::{self, StdinLock, StdoutLock, Write},
 	process::{Child, ChildStdin, ChildStdout},
@@ -156,8 +154,8 @@ impl Server {
 			(stdout, stdin)
 		};
 
-		let stdin = io::stdin_locked();
-		let stdout = io::stdout_locked();
+		let stdin = io::stdin().lock();
+		let stdout = io::stdout().lock();
 
 		Self {
 			stdin,

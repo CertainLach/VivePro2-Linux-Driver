@@ -12,7 +12,7 @@
           inherit system;
           overlays = [ rust-overlay.overlay ];
         };
-        rust = ((pkgs.buildPackages.rustChannelOf { date = "2022-01-13"; channel = "nightly"; }).default.override {
+        rust = ((pkgs.buildPackages.rustChannelOf { date = "2022-03-14"; channel = "nightly"; }).default.override {
           targets = [ "x86_64-pc-windows-gnu" ];
           extensions = [ "rust-src" ];
         });
@@ -46,7 +46,10 @@
               xorg.libXi
 
               cairo
+              vulkan-loader
+              vulkan-loader.dev
             ];
+            LD_LIBRARY_PATH="${pkgs.vulkan-loader}/lib";
           };
           mingw = pkgs-mingw.mkShell {
             nativeBuildInputs = [ rust ];
