@@ -8,7 +8,7 @@ use std::{
 use crate::Result;
 use cppvtbl::{impl_vtables, HasVtable, VtableRef, WithVtables};
 use lens_protocol::{Client, Eye};
-use tracing::{error, instrument};
+use tracing::{error, info, instrument};
 use vive_hid::Resolution;
 
 use crate::openvr::{
@@ -161,10 +161,10 @@ impl ITrackedDeviceServerDriver for HmdDriver {
 
 	fn GetComponent(&self, pchComponentNameAndVersion: *const c_char) -> *mut c_void {
 		let name = unsafe { CStr::from_ptr(pchComponentNameAndVersion) };
-		println!("getting {name:?} hmd component");
+		info!("getting {name:?} hmd component");
 		let real = self.real.GetComponent(pchComponentNameAndVersion);
 		if name == unsafe { CStr::from_ptr(IVRDisplayComponent_Version) } {
-			println!("faking display");
+			info!("faking display");
 			let display = Box::leak(Box::new(WithVtables::new(HmdDisplay {
 				// steam: self.steam.clone(),
 				// vive: self.vive.clone(),
