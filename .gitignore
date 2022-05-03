@@ -1,1 +1,4 @@
 /target
+/result
+/dist-proxy/lens-server/lens-server.exe
+/dist-proxy/driver_lighthouse.so
