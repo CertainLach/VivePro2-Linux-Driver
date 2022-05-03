@@ -38,8 +38,37 @@ pub struct ConfigDevice {
 	pub eye_target_width_in_pixels: u32,
 }
 #[derive(Deserialize, Debug)]
+pub enum DistortType {
+	#[serde(rename = "DISTORT_FTHETA")]
+	DistortFtheta,
+}
+#[derive(Deserialize, Debug)]
+pub struct IntrinsicsDistort {
+	pub center_x: f32,
+	pub center_y: f32,
+	pub coeffs: Vec<f64>,
+	pub r#type: DistortType,
+}
+#[derive(Deserialize, Debug)]
+pub struct ConfigCameraIntrinsics {
+	pub center_x: f32,
+	pub center_y: f32,
+	pub distort: IntrinsicsDistort,
+	pub focal_x: f32,
+	pub focal_y: f32,
+	pub width: u32,
+	pub height: u32,
+}
+#[derive(Deserialize, Debug)]
+pub struct ConfigCamera {
+	pub name: String,
+	pub intrinsics: ConfigCameraIntrinsics,
+	pub extrinsics: Vec<u8>,
+}
+#[derive(Deserialize, Debug)]
 pub struct SteamConfig {
 	pub device: ConfigDevice,
+	pub tracked_cameras: Vec<ConfigCamera>,
 	pub direct_mode_edid_pid: u32,
 	pub direct_mode_edid_vid: u32,
 	pub seconds_from_photons_to_vblank: f64,
@@ -178,7 +207,7 @@ impl ViveDevice {
 			.device_list()
 			.find(|dev| dev.serial_number() == Some(sn))
 			.ok_or(Error::DeviceNotFound)?;
-		if device.vendor_id() != STEAM_VID || device.product_id() != STEAM_PID {
+		if device.vendor_id() != VIVE_VID || device.product_id() != VIVE_PID {
 			return Err(Error::NotAVive);
 		}
 		let open = api.open_serial(device.vendor_id(), device.product_id(), sn)?;
@@ -276,11 +305,36 @@ impl ViveDevice {
 		// TODO: wait for reconnection
 		Ok(())
 	}
-}
-
-#[test]
-fn test() -> Result<()> {
-	let dev = ViveDevice::open_first()?;
-	dbg!(dev.read_ipd()?);
-	Ok(())
+	pub fn set_brightness(&self, brightness: u8) -> Result<(), Error> {
+		self.write_feature(
+			0x04,
+			0x2970,
+			format!("setbrightness,{}", brightness.min(130)).as_bytes(),
+		)
+	}
+	pub fn toggle_noise_canceling(&self, enabled: bool) -> Result<(), Error> {
+		const ENABLE: &[&[u8]] = &[
+			b"codecreg=9c9,80".as_slice(),
+			b"codecreg=9c8,a5",
+			b"codecreg=9d0,a4",
+			b"codecreg=1c008f,1",
+			b"codecreg=1c0005,9",
+			b"codecreg=1c0005,8000",
+		];
+		const DISABLE: &[&[u8]] = &[
+			b"codecreg=9c9,8c".as_slice(),
+			b"codecreg=9c8,a4",
+			b"codecreg=9d0,0",
+			b"codecreg=1c008f,0",
+			b"codecreg=1c0005,9",
+			b"codecreg=1c0005,8000",
+		];
+		// I have no idea what those values mean, this is straight
+		// copy-pasta from what original vive console sends
+		let lines: &'static [&'static [u8]] = if enabled { ENABLE } else { DISABLE };
+		for line in lines {
+			self.write_feature(0x04, 0x2971, line)?;
+		}
+		Ok(())
+	}
 }
