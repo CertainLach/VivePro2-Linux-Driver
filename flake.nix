@@ -131,7 +131,7 @@
                   cp -r $src/dist-proxy/ $out/
                   chmod u+w -R $out
                   cp ${packages.lens-server}/bin/lens-server.exe $out/lens-server/
-                  cp ${packages.driver-proxy}/lib/libdriver_lighthouse.so $out
+                  cp ${packages.driver-proxy}/lib/libdriver_proxy.so $out/driver_lighthouse.so
                 '';
                 patchPhase = "true";
                 fixupPhase = "true";
