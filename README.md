@@ -1,5 +1,5 @@
 # Vive Pro 2 linux driver
-
+/driver_lighthouse.so
 ## Why
 
 Because HTC doesn't care about non-windows users, even if OG Vive worked just fine for them
@@ -51,8 +51,7 @@ And then installed via
 ./install.sh
 ```
 
-Due to how lighthouse driver works, you should also install Vive Console from steam, it wouldn't be usable/used however, it just needs to be installed
-https://store.steampowered.com/app/1635730/VIVE_Console_for_SteamVR/
+Latest version of driver [automatically patches](https://github.com/CertainLach/VivePro2-Linux-Driver/commit/70687011f80d58c78ee77868895def9d77adf262) SteamVR, so VIVE Console no longer required to be installed
 
 ## Configuration
 
