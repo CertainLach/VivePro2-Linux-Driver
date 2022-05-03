@@ -35,7 +35,10 @@ pub fn get_hmd_driver_factory() -> Result<&'static Symbol<'static, HmdDriverFact
 
 fn HmdDriverFactory_impl(iface: *const c_char) -> Result<*const c_void> {
 	// May be already installed
-	let _ = tracing_subscriber::fmt().without_time().try_init();
+	if tracing_subscriber::fmt().without_time().try_init().is_ok() {
+		// This magic string is also used for installation detection!
+		info!("https://patreon.com/0lach");
+	}
 
 	let ifacen = unsafe { CStr::from_ptr(iface) };
 	info!("requested interface: {ifacen:?}");

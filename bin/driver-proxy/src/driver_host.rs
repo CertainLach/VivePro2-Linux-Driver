@@ -25,6 +25,8 @@ pub struct DriverHost {
 }
 
 const HMD_RESOLUTION: Setting<i32> = setting!("vivepro2", "resolution");
+const BRIGHTNESS: Setting<i32> = setting!("vivepro2", "brightness");
+const NOISE_CANCEL: Setting<bool> = setting!("vivepro2", "noiseCancel");
 
 impl IVRServerDriverHost for DriverHost {
 	fn TrackedDeviceAdded(
@@ -44,12 +46,30 @@ impl IVRServerDriverHost for DriverHost {
 				// We don't know for sure this device serial
 				let vive = Rc::new(ViveDevice::open_first()?);
 
-				let res = HMD_RESOLUTION.get();
-				let resolution =
-					Resolution::try_from(res as u8).unwrap_or(Resolution::R2448x1224f90);
-				HMD_RESOLUTION.set(resolution as u8 as i32);
+				let resolution = {
+					let res = HMD_RESOLUTION.get();
+					let resolution =
+						Resolution::try_from(res as u8).unwrap_or(Resolution::R2448x1224f90);
+					HMD_RESOLUTION.set(resolution as u8 as i32);
 
-				vive.set_resolution(resolution)?;
+					vive.set_resolution(resolution)?;
+					resolution
+				};
+				{
+					let nc = NOISE_CANCEL.get();
+					NOISE_CANCEL.set(nc);
+
+					vive.toggle_noise_canceling(nc)?;
+				}
+				{
+					let mut brightness = BRIGHTNESS.get();
+					if brightness == 0 {
+						brightness = 130;
+					}
+					BRIGHTNESS.set(brightness);
+
+					vive.set_brightness(brightness as u8)?;
+				}
 
 				let config = vive.read_config()?;
 
