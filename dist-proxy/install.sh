@@ -16,15 +16,29 @@ LIGHTHOUSE_DRIVER=$STEAMVR/drivers/lighthouse/bin/linux64
 
 if ! test -f $LIGHTHOUSE_DRIVER/driver_lighthouse.so; then
 	echo "Lighthouse driver not found, broken installation?"
-fi
-if ! test -f $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so; then
-	echo "Creating backup (also used by proxy driver)"
-	cp $LIGHTHOUSE_DRIVER/driver_lighthouse.so $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so
-else
-	echo "Seems like proxy driver is already installed? Proceeding with update then"
+	exit 1
 fi
 
+if ! test -f $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so; then
+	echo "= Moving original driver"
+	cp $LIGHTHOUSE_DRIVER/driver_lighthouse.so $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so
+elif ! grep -s "https://patreon.com/0lach" $LIGHTHOUSE_DRIVER/driver_lighthouse.so; then
+	echo "Original driver exists, but installed - is either old proxy, or updated original"
+	echo "If SteamVR will fail to start after this message - then reinstal, and start installation again"
+	echo "This check works better with new version of driver"
+	echo "= Moving original driver"
+	cp $LIGHTHOUSE_DRIVER/driver_lighthouse.so $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so
+else
+	echo "= Proxy driver is already installed, updating"
+fi
+
+echo "= Patching real driver"
+sewer -v --backup $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so.bak $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so patch-file --partial driver_lighthouse_real.sew || true
+
+echo "= Overriding current driver"
 rsync -a $SCRIPTPATH/driver_lighthouse.so $LIGHTHOUSE_DRIVER/driver_lighthouse.so
+
+echo "= Updating proxy server"
 rsync -ar $SCRIPTPATH/lens-server/ $LIGHTHOUSE_DRIVER/lens-server
 
 echo "Installation finished, try to start SteamVR"

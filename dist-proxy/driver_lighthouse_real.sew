@@ -1,0 +1,13 @@
+# Driver requirement check
+
+-(?x-u)
+-(
+-	\x49\x8b\x44\x24\x70 # mov
+-	\x48\x8b\x40\x48 # mov
+-	\x48\x83\x78\xe8\x00 # cmp
+-)
+-\x74\x20 # jz
+
++(?x)
++$1
++\xeb\x20 # jmp
