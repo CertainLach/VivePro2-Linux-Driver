@@ -1,0 +1,8 @@
+[package]
+name = "openvr"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cppvtbl = "0.2.0"
+real_c_string = "1.0.0"
