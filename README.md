@@ -20,9 +20,7 @@ Current implementation of driver intercepts some calls between SteamVR and commo
 
 ### TODO
 
-- Configuration utilities - most of reconfiguration (resolution, noise cancelation, brightness) abilities are already reverse-engineered, they just aren't easly configurable, some GUI utility should be written, or at least everything should be added to `steamvr.vrsettings`
-- Microphone noise canceling configuration (implemented, but not exposed to user)
-- Brightness configuration (implemented, not exposed)
+- Configuration utilities - most of reconfiguration (resolution, noise cancelation, brightness) abilities are already reverse-engineered, they just aren't easly configurable, some GUI utility should be written
 - Focus knob overlay (Some third-party may work though). Focusing does work, but there is no visual helper.
 - Audio output is not targeted to correct device yet (You need to manually switch it every time), it should be possible to implement this feature in this driver however
 - Front facing camera noise - can be solved with some kernel tinkering (UVC driver)
@@ -58,9 +56,11 @@ https://store.steampowered.com/app/1635730/VIVE_Console_for_SteamVR/
 
 ## Configuration
 
-Currently only one setting added to `steamvr.vrsettings`:
+In `steamvr.vrsettings`:
 
 `vivepro2.resolution`: `0-5`
+
+Reconfigures helmet before startup, similar to original vive console utility
 
 - 0 - 2448x1224 90fps
 - 1 - 2448x1224 120fps
@@ -68,6 +68,14 @@ Currently only one setting added to `steamvr.vrsettings`:
 - 3 - 3680x1836 90fps
 - 4 - 4896x2448 90fps
 - 5 - 4896x2448 120fps
+
+`vivepro2.brightness`: `1-130`
+
+Original vive console seems to fade from 0 to 130 on start, and then no longer touch this setting
+
+`vivepro2.noiseCancel`: `true/false`
+
+Similar option exists in vive console
 
 ## Required kernel patches
 
