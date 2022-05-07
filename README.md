@@ -35,7 +35,7 @@ Current implementation of driver intercepts some calls between SteamVR and commo
 
 ## Installation
 
-This driver can be built using nix:
+This driver can be built using [nix package manager](https://nixos.org/download.html) (it works on any distribution), build is fully reproducible, all needed dependencies will be downloaded automatically:
 
 ```sh
 nix build .#driver-proxy-release
@@ -59,7 +59,7 @@ In `steamvr.vrsettings`:
 
 `vivepro2.resolution`: `0-5`
 
-Reconfigures helmet before startup, similar to original vive console utility
+Reconfigures helmet before startup
 
 - 0 - 2448x1224 90fps
 - 1 - 2448x1224 120fps
@@ -68,13 +68,19 @@ Reconfigures helmet before startup, similar to original vive console utility
 - 4 - 4896x2448 90fps
 - 5 - 4896x2448 120fps
 
+Similar to original vive console utility
+
 `vivepro2.brightness`: `1-130`
+
+Display brightness
 
 Original vive console seems to fade from 0 to 130 on start, and then no longer touch this setting
 
 `vivepro2.noiseCancel`: `true/false`
 
-Similar option exists in vive console
+Toggle built-in microphone noise canceling
+
+Similar option exists in vive console,
 
 ## Required kernel patches
 
