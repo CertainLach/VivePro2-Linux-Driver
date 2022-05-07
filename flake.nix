@@ -116,6 +116,19 @@
                 nativeBuildInputs = [ pkgconfig ];
                 buildInputs = [ udev ];
               };
+            sewer = with pkgs.pkgsStatic;
+              rustPlatform.buildRustPackage {
+                name = "sewer";
+                src = fetchFromGitHub {
+                  owner = "CertainLach";
+                  repo = "sewer";
+                  rev = "fb0d054e53e2afd4c64232318495e5351b446330";
+                  hash = "sha256-2S2JXKLbRQsrQmt25djj/x284NXqPSGJjybDe9Uw7ZM=";
+                };
+                cargoHash = "sha256-LZTAWRZbJktp5cDTkPWcBSPJwnG5fYDDRGkrVIVdWyU=";
+                target = "x86_64-unknown-linux-musl";
+                doCheck = false;
+              };
             lens-server = with pkgs-mingw;
               rustPlatform.buildRustPackage {
                 inherit version src cargoLock;
@@ -130,6 +143,7 @@
                 installPhase = ''
                   cp -r $src/dist-proxy/ $out/
                   chmod u+w -R $out
+                  cp ${packages.sewer}/bin/sewer $out/bin/
                   cp ${packages.lens-server}/bin/lens-server.exe $out/lens-server/
                   cp ${packages.driver-proxy}/lib/libdriver_proxy.so $out/driver_lighthouse.so
                 '';
