@@ -1,10 +1,10 @@
 {
   description = "VIVE Pro 2 support for linux";
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs";
+    nixpkgs.url = "github:nixos/nixpkgs/1316edc465ed7b2d650ba8be6a1a0b129926bd81";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
-      url = "github:oxalica/rust-overlay";
+      url = "github:oxalica/rust-overlay/f7d4a3aabee883bfa4d8987a19446ca8f25df81f";
       inputs = {
         nixpkgs.follows = "nixpkgs";
         flake-utils.follows = "flake-utils";
@@ -58,7 +58,7 @@
                 let
                   rust =
                     (final.buildPackages.rustChannelOf {
-                      date = "2022-04-15";
+                      date = "2022-04-08";
                       channel = "nightly";
                     }).default.override {
                       targets = [ "x86_64-pc-windows-gnu" ];
