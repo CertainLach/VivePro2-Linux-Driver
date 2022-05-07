@@ -5,6 +5,13 @@ set -euo pipefail
 SCRIPT=$(readlink -f "$0")
 SCRIPTPATH=$(dirname $SCRIPT)
 
+# Patreon release contains bundled sewer, use it here
+PATH=$SCRIPTPATH/bin:$PATH
+
+echo "SteamVR proxy driver for Vive Pro 2"
+echo "Consider supporting developer on patreon: https://patreon.com/0lach"
+sleep 3
+
 STEAMVR="${STEAMVR:-$HOME/.local/share/Steam/steamapps/common/SteamVR}"
 if ! test -d $STEAMVR; then
 	echo "SteamVR not found at $STEAMVR (Set \$STEAMVR manually?)"

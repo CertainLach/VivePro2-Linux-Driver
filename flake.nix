@@ -26,22 +26,22 @@
             rust-overlay.overlay
             (final: prev:
               let
-                rust =
-                  (final.buildPackages.rustChannelOf {
-                    date = "2022-04-15";
-                    channel = "nightly";
-                  }).default.override {
-                    extensions = [ "rust-src" ];
-                  };
+                rust = (final.buildPackages.rustChannelOf {
+                  date = "2022-04-08";
+                  channel = "nightly";
+                }).default.override {
+                  extensions = [ "rust-src" ];
+                  targets = [ "x86_64-unknown-linux-musl" ];
+                };
               in
               {
                 rustDev = rust;
-                rustPlatform =
-                  prev.makeRustPlatform {
-                    rustc = rust;
-                    cargo = rust;
-                  };
-              })
+                rustPlatform = prev.makeRustPlatform {
+                  rustc = rust;
+                  cargo = rust;
+                };
+              }
+            )
           ];
         };
         pkgs-mingw = import nixpkgs {
@@ -143,6 +143,7 @@
                 installPhase = ''
                   cp -r $src/dist-proxy/ $out/
                   chmod u+w -R $out
+                  mkdir $out/bin/
                   cp ${packages.sewer}/bin/sewer $out/bin/
                   cp ${packages.lens-server}/bin/lens-server.exe $out/lens-server/
                   cp ${packages.driver-proxy}/lib/libdriver_proxy.so $out/driver_lighthouse.so
