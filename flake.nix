@@ -1,10 +1,10 @@
 {
   description = "VIVE Pro 2 support for linux";
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/1316edc465ed7b2d650ba8be6a1a0b129926bd81";
+    nixpkgs.url = "github:dguibert/nixpkgs/dg/fix-replacestdenv-coreutils";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
-      url = "github:oxalica/rust-overlay/f7d4a3aabee883bfa4d8987a19446ca8f25df81f";
+      url = "github:oxalica/rust-overlay";
       inputs = {
         nixpkgs.follows = "nixpkgs";
         flake-utils.follows = "flake-utils";
@@ -23,7 +23,8 @@
         pkgs = import nixpkgs {
           inherit system;
           overlays = [
-            rust-overlay.overlay
+            rust-overlay.overlays.default
+            (import ./nix/oldGlibc.nix)
             (final: prev:
               let
                 rust = (final.buildPackages.rustChannelOf {
@@ -46,8 +47,9 @@
         };
         pkgs-mingw = import nixpkgs {
           inherit system;
+          config.replaceStdenv = import ./nix/oldGlibcStdenv.nix;
           overlays = [
-            rust-overlay.overlay
+            rust-overlay.overlays.default
             (final: prev: {
               # inherit rustPlatform;
               # https://github.com/NixOS/nixpkgs/issues/149593

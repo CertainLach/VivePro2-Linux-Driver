@@ -2,11 +2,11 @@
   "nodes": {
     "flake-utils": {
       "locked": {
-        "lastModified": 1649676176,
-        "narHash": "sha256-OWKJratjt2RW151VUlJPRALb7OU2S5s+f0vLj4o1bHM=",
+        "lastModified": 1656065134,
+        "narHash": "sha256-oc6E6ByIw3oJaIyc67maaFcnjYOz1mMcOtHxbEf9NwQ=",
         "owner": "numtide",
         "repo": "flake-utils",
-        "rev": "a4b154ebbdc88c8498a5c7b01589addc9e9cb678",
+        "rev": "bee6a7250dd1b01844a2de7e02e4df7d8a0a206c",
         "type": "github"
       },
       "original": {
@@ -17,17 +17,17 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1645950271,
-        "narHash": "sha256-kR2Rd2Q+7+bkhmmuFKGS3wvkMRTT50UKtu5LhSn9TKs=",
-        "owner": "nixos",
+        "lastModified": 1655819575,
+        "narHash": "sha256-st4XTpKu1/C9pBZk3rShhpQYhqVaYwtsth+6rRXj794=",
+        "owner": "dguibert",
         "repo": "nixpkgs",
-        "rev": "1316edc465ed7b2d650ba8be6a1a0b129926bd81",
+        "rev": "6a09a0d4aa384060f05d7953c2ad6793891449f2",
         "type": "github"
       },
       "original": {
-        "owner": "nixos",
+        "owner": "dguibert",
+        "ref": "dg/fix-replacestdenv-coreutils",
         "repo": "nixpkgs",
-        "rev": "1316edc465ed7b2d650ba8be6a1a0b129926bd81",
         "type": "github"
       }
     },
@@ -48,17 +48,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1649385338,
-        "narHash": "sha256-N6CgWq5bXN49OM6A4GmbjwsISxeYLIS3W89XJiqYyik=",
+        "lastModified": 1656730247,
+        "narHash": "sha256-UTQm1xRDBxbwIJ5bKIj+PNHsi0YPplvWjJLG5KPt0KU=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "f7d4a3aabee883bfa4d8987a19446ca8f25df81f",
+        "rev": "be0b8a7cbf95d43f23ef0bfa781d644a43c75396",
         "type": "github"
       },
       "original": {
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "f7d4a3aabee883bfa4d8987a19446ca8f25df81f",
         "type": "github"
       }
     }
