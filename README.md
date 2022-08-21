@@ -38,6 +38,7 @@ Current implementation of driver intercepts some calls between SteamVR and commo
 This driver can be built using [nix package manager](https://nixos.org/download.html) (it works on any distribution), build is fully reproducible, all needed dependencies will be downloaded automatically:
 
 ```sh
+# Note: the #driver-proxy-release part of this command is not a comment, it's just github syntax highlighter is wrong
 nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#driver-proxy-release
 ```
 
