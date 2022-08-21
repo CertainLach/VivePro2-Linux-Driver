@@ -38,7 +38,7 @@ Current implementation of driver intercepts some calls between SteamVR and commo
 This driver can be built using [nix package manager](https://nixos.org/download.html) (it works on any distribution), build is fully reproducible, all needed dependencies will be downloaded automatically:
 
 ```sh
-nix build .#driver-proxy-release
+nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#driver-proxy-release
 ```
 
 ...or using manual building instructions from here (i dont provide any guarantees about contents of this repo) https://github.com/santeri3700/vive-pro-2-on-linux#install-vive-pro-2-linux-driver-by-certainlach
