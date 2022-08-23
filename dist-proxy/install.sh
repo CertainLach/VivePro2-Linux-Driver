@@ -48,4 +48,19 @@ rsync -a $SCRIPTPATH/driver_lighthouse.so $LIGHTHOUSE_DRIVER/driver_lighthouse.s
 echo "= Updating proxy server"
 rsync -ar $SCRIPTPATH/lens-server/ $LIGHTHOUSE_DRIVER/lens-server
 
+echo "= Testing proxy server"
+LENS_SERVER=$LIGHTHOUSE_DRIVER/lens-server/lens-server.exe
+WINE="${WINE:-wine}"
+if test $($WINE $LENS_SERVER check >/dev/null 2>/dev/null || echo $?) -eq 42; then
+	echo "Wine found at $WINE"
+	# Success
+elif test $(wine64 $LENS_SERVER check >/dev/null 2>/dev/null || echo $?) -eq 42; then
+	echo "Wine found at wine64"
+	# Success
+else
+	echo "Failed to start lens server, check that you can start it yourself using $WINE $LENS_SERVER"
+	echo "If you have wine installed at custom path, you can set \$WINE variable, but make sure Steam can see it"
+	exit 1
+fi
+
 echo "Installation finished, try to start SteamVR"

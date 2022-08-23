@@ -1,5 +1,7 @@
 use std::{
+	env::args,
 	ffi::OsStr,
+	process::exit,
 	sync::atomic::{AtomicBool, Ordering},
 };
 
@@ -126,6 +128,10 @@ impl LensLibrary {
 
 #[tracing::instrument(err)]
 fn main() -> Result<()> {
+	if args().skip(1).next() == Some("check".to_owned()) {
+		exit(42);
+	}
+
 	tracing_subscriber::fmt()
 		.without_time()
 		// stdout is occupied for protocol, and stderr is available
