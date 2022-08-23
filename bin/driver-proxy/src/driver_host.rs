@@ -6,7 +6,7 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::rc::Rc;
 use tracing::{error, info};
-use vive_hid::{Resolution, SteamDevice, ViveDevice};
+use vive_hid::{SteamDevice, ViveDevice};
 
 use crate::driver_context::get_driver_context;
 use crate::hmd::HmdDriver;
@@ -46,14 +46,22 @@ impl IVRServerDriverHost for DriverHost {
 				// We don't know for sure this device serial
 				let vive = Rc::new(ViveDevice::open_first()?);
 
-				let resolution = {
+				let mode = {
 					let res = HMD_RESOLUTION.get();
-					let resolution =
-						Resolution::try_from(res as u8).unwrap_or(Resolution::R2448x1224f90);
-					HMD_RESOLUTION.set(resolution as u8 as i32);
+					let modes = vive.query_modes();
+					let mode = modes
+						.iter()
+						.find(|m| m.id == res as u8)
+						.unwrap_or(
+							modes
+								.first()
+								.expect("device has at least one mode if opened"),
+						)
+						.clone();
+					HMD_RESOLUTION.set(mode.id as i32);
 
-					vive.set_resolution(resolution)?;
-					resolution
+					vive.set_mode(mode.id)?;
+					mode
 				};
 				{
 					let nc = NOISE_CANCEL.get();
@@ -83,7 +91,7 @@ impl IVRServerDriverHost for DriverHost {
 					// vive,
 					lens,
 					real,
-					resolution,
+					mode,
 				})));
 
 				return self.real.TrackedDeviceAdded(

@@ -9,7 +9,7 @@ use crate::Result;
 use cppvtbl::{impl_vtables, HasVtable, VtableRef, WithVtables};
 use lens_protocol::{Client, Eye};
 use tracing::{error, info, instrument};
-use vive_hid::Resolution;
+use vive_hid::Mode;
 
 use crate::openvr::{
 	DistortionCoordinates_t, DriverPose_t, EVREye, EVRInitError, ITrackedDeviceServerDriver,
@@ -30,14 +30,14 @@ struct HmdDisplay {
 	// vive: Rc<ViveDevice>,
 	lens: Rc<RefCell<Client>>,
 	real: &'static VtableRef<IVRDisplayComponentVtable>,
-	resolution: Resolution,
+	mode: Mode,
 }
 
 impl IVRDisplayComponent for HmdDisplay {
 	#[instrument(skip(self))]
 	fn GetWindowBounds(&self, pnX: *mut i32, pnY: *mut i32, pnWidth: *mut u32, pnHeight: *mut u32) {
 		// let err: Result<()> = try {
-		let (width, height) = self.resolution.resolution();
+		let Mode { width, height, .. } = self.mode;
 		unsafe {
 			*pnX = 0;
 			*pnY = 0;
@@ -72,7 +72,7 @@ impl IVRDisplayComponent for HmdDisplay {
 		pnHeight: *mut u32,
 	) {
 		// let err: Result<()> = try {
-		let (width, height) = self.resolution.resolution();
+		let Mode { width, height, .. } = self.mode;
 		unsafe {
 			*pnX = if eEye == EVREye::Eye_Left {
 				0
@@ -143,7 +143,7 @@ pub struct HmdDriver {
 	// pub vive: Rc<ViveDevice>,
 	pub lens: Rc<RefCell<Client>>,
 	pub real: &'static VtableRef<ITrackedDeviceServerDriverVtable>,
-	pub resolution: Resolution,
+	pub mode: Mode,
 }
 
 impl ITrackedDeviceServerDriver for HmdDriver {
@@ -170,7 +170,7 @@ impl ITrackedDeviceServerDriver for HmdDriver {
 				// vive: self.vive.clone(),
 				lens: self.lens.clone(),
 				real: unsafe { VtableRef::from_raw(real as *const _) },
-				resolution: self.resolution,
+				mode: self.mode,
 			})));
 			VtableRef::into_raw_mut(HasVtable::<IVRDisplayComponentVtable>::get_mut(display))
 				as *mut _

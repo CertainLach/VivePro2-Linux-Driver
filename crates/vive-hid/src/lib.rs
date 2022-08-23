@@ -147,52 +147,32 @@ pub struct ViveConfig {
 }
 
 #[derive(Clone, Copy)]
-#[repr(u8)]
-pub enum Resolution {
-	R2448x1224f90 = 0,
-	R2448x1224f120 = 1,
-	R3264x1632f90 = 2,
-	R3680x1836f90 = 3,
-	R4896x2448f90 = 4,
-	R4896x2448f120 = 5,
-}
-impl Resolution {
-	pub fn resolution(&self) -> (u32, u32) {
-		match self {
-			Self::R2448x1224f90 => (2448, 1224),
-			Self::R2448x1224f120 => (2448, 1224),
-			Self::R3264x1632f90 => (3264, 1632),
-			Self::R3680x1836f90 => (3680, 1836),
-			Self::R4896x2448f90 => (4896, 2448),
-			Self::R4896x2448f120 => (4896, 2448),
-		}
-	}
-	pub fn frame_rate(&self) -> f32 {
-		match self {
-			Self::R2448x1224f90 => 90.03,
-			Self::R2448x1224f120 => 120.05,
-			Self::R3264x1632f90 => 90.00,
-			Self::R3680x1836f90 => 90.02,
-			Self::R4896x2448f90 => 90.02,
-			Self::R4896x2448f120 => 120.02,
-		}
-	}
-}
-impl TryFrom<u8> for Resolution {
-	type Error = ();
+pub struct Mode {
+	pub id: u8,
 
-	fn try_from(value: u8) -> Result<Self, Self::Error> {
-		Ok(match value {
-			0 => Self::R2448x1224f90,
-			1 => Self::R2448x1224f120,
-			2 => Self::R3264x1632f90,
-			3 => Self::R3680x1836f90,
-			4 => Self::R4896x2448f90,
-			5 => Self::R4896x2448f120,
-			_ => return Err(()),
-		})
+	pub width: u32,
+	pub height: u32,
+	pub frame_rate: f32,
+}
+impl Mode {
+	const fn new(id: u8, width: u32, height: u32, frame_rate: f32) -> Self {
+		Self {
+			id,
+			width,
+			height,
+			frame_rate,
+		}
 	}
 }
+
+const VIVE_PRO_2_MODES: [Mode; 6] = [
+	Mode::new(0, 2448, 1224, 90.0),
+	Mode::new(1, 2448, 1224, 120.0),
+	Mode::new(2, 3264, 1632, 90.0),
+	Mode::new(3, 3680, 1836, 90.0),
+	Mode::new(4, 4896, 2448, 90.0),
+	Mode::new(5, 2896, 2448, 120.0),
+];
 
 pub struct ViveDevice(HidDevice);
 impl ViveDevice {
@@ -299,9 +279,13 @@ impl ViveDevice {
 
 		serde_json::from_str(&string).map_err(|_| Error::ConfigReadFailed)
 	}
-	pub fn set_resolution(&self, resolution: Resolution) -> Result<(), Error> {
+	/// Always returns at least one mode
+	pub fn query_modes(&self) -> Vec<Mode> {
+		VIVE_PRO_2_MODES.into_iter().collect()
+	}
+	pub fn set_mode(&self, resolution: u8) -> Result<(), Error> {
 		self.write_feature(0x04, 0x2970, b"wireless,0")?;
-		self.write_feature(0x04, 0x2970, format!("dtd,{}", resolution as u8).as_bytes())?;
+		self.write_feature(0x04, 0x2970, format!("dtd,{}", resolution).as_bytes())?;
 		// TODO: wait for reconnection
 		Ok(())
 	}
