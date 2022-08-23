@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -euo pipefail
+set -eu
 
 SCRIPT=$(readlink -f "$0")
 SCRIPTPATH=$(dirname $SCRIPT)
