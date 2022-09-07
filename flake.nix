@@ -28,7 +28,7 @@
             (final: prev:
               let
                 rust = (final.buildPackages.rustChannelOf {
-                  date = "2022-04-08";
+                  date = "2022-09-03";
                   channel = "nightly";
                 }).default.override {
                   extensions = [ "rust-src" ];
@@ -60,7 +60,7 @@
                 let
                   rust =
                     (final.buildPackages.rustChannelOf {
-                      date = "2022-04-08";
+                      date = "2022-09-03";
                       channel = "nightly";
                     }).default.override {
                       targets = [ "x86_64-pc-windows-gnu" ];
@@ -116,7 +116,7 @@
                 inherit version src cargoLock;
                 pname = "vivepro2-driver-proxy";
                 nativeBuildInputs = [ pkgconfig ];
-                buildInputs = [ udev ];
+                buildInputs = [ udev dbus.dev ];
               };
             sewer = with pkgs.pkgsStatic;
               rustPlatform.buildRustPackage {
@@ -158,8 +158,13 @@
           default = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
               rustDev
+              cargo-edit
               pkg-config
+              lld
+              dbus.dev
+              udev
             ];
+            LD_LIBRARY_PATH = "${pkgs.dbus.lib}/lib";
           };
         };
         devShell = devShells.default;

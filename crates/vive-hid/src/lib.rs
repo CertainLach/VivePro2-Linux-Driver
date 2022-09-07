@@ -5,6 +5,7 @@ use hidapi::{HidApi, HidDevice, HidError};
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
 use serde_json::Value;
+use tracing::error;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -214,9 +215,14 @@ impl ViveDevice {
 		let mut data = [0u8; 64];
 		self.0.read(&mut data)?;
 		if data[0] != id {
+			error!("expected {id} but got {}\n{:02x?}", data[0], data);
 			return Err(Error::ProtocolError("wrong report id"));
 		}
 		if &data[1..1 + strip_prefix.len()] != strip_prefix {
+			error!(
+				"expected {strip_prefix:x?}, got {:x?}",
+				&data[1..1 + strip_prefix.len()]
+			);
 			return Err(Error::ProtocolError("wrong prefix"));
 		}
 		let size = data[1 + strip_prefix.len()] as usize;
@@ -239,7 +245,7 @@ impl ViveDevice {
 		let mut out = [0u8; 62];
 		let size = self.read(0x02, &[], &mut out)?;
 		Ok(std::str::from_utf8(&out[..size])
-			.map_err(|_| Error::ProtocolError("devsn is not a string"))?
+			.map_err(|_| Error::ProtocolError("ipd is not a string"))?
 			.to_string())
 	}
 	pub fn read_config(&self) -> Result<ViveConfig> {

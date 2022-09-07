@@ -1,14 +1,16 @@
 use cppvtbl::{impl_vtables, HasVtable, VtableRef, WithVtables};
 use lens_client::start_lens_server;
-use once_cell::sync::OnceCell;
+use once_cell::sync::Lazy;
 use std::cell::RefCell;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::rc::Rc;
 use tracing::{error, info};
+use valve_pm::{StationCommand, StationControl, StationState};
 use vive_hid::{SteamDevice, ViveDevice};
 
-use crate::driver_context::get_driver_context;
+use crate::driver_context::DRIVER_CONTEXT;
+use crate::factory::TOKIO_RUNTIME;
 use crate::hmd::HmdDriver;
 use crate::openvr::{
 	Compositor_FrameTiming, DriverPose_t, ETrackedDeviceClass, EVREventType, HmdMatrix34_t,
@@ -136,7 +138,11 @@ impl IVRServerDriverHost for DriverHost {
 	}
 
 	fn PollNextEvent(&self, pEvent: *mut VREvent_t, uncbVREvent: u32) -> bool {
-		self.real.PollNextEvent(pEvent, uncbVREvent)
+		let id = std::thread::current().id();
+		info!("poll event start from {id:?}");
+		let r = self.real.PollNextEvent(pEvent, uncbVREvent);
+		info!("poll event finish");
+		r
 	}
 
 	fn GetRawTrackedDevicePoses(
@@ -197,15 +203,15 @@ impl IVRServerDriverHost for DriverHost {
 	}
 }
 
-static DRIVER_HOST: OnceCell<WithVtables<DriverHost>> = OnceCell::new();
-
-pub fn get_driver_host() -> Result<&'static WithVtables<DriverHost>> {
-	DRIVER_HOST.get_or_try_init(|| {
-		let context = get_driver_context()?;
-		let real = unsafe {
-			&*(context.get_generic_interface(IVRServerDriverHost_Version)? as *const _
-				as *const VtableRef<IVRServerDriverHostVtable>)
-		};
-		Ok(WithVtables::new(DriverHost { real }))
-	})
-}
+pub static DRIVER_HOST: Lazy<WithVtables<DriverHost>> = Lazy::new(|| {
+	let context = DRIVER_CONTEXT
+		.get()
+		.expect("driver context should be initialized at this point");
+	let real = unsafe {
+		&*(context
+			.get_generic_interface(IVRServerDriverHost_Version)
+			.expect("missing server driver host") as *const _
+			as *const VtableRef<IVRServerDriverHostVtable>)
+	};
+	WithVtables::new(DriverHost { real })
+});

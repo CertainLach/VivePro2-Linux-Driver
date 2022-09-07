@@ -4,17 +4,15 @@ use std::{
 	ptr::null,
 };
 
-use crate::{Error, Result};
+use crate::{server_tracked_provider::SERVER_TRACKED_DEVICE_PROVIDER, Error, Result};
 use cppvtbl::{HasVtable, VtableRef};
 use libloading::{Library, Symbol};
-use once_cell::sync::OnceCell;
+use once_cell::sync::{Lazy, OnceCell};
+use tokio::runtime::Runtime;
 use tracing::info;
 
-use crate::{
-	openvr::{
-		EVRInitError, IServerTrackedDeviceProviderVtable, IServerTrackedDeviceProvider_Version,
-	},
-	server_tracked_provider::get_server_tracked_provider,
+use crate::openvr::{
+	EVRInitError, IServerTrackedDeviceProviderVtable, IServerTrackedDeviceProvider_Version,
 };
 
 pub type HmdDriverFactory =
@@ -33,6 +31,9 @@ pub fn get_hmd_driver_factory() -> Result<&'static Symbol<'static, HmdDriverFact
 	})
 }
 
+pub static TOKIO_RUNTIME: Lazy<Runtime> =
+	Lazy::new(|| Runtime::new().expect("tokio init should not fail"));
+
 fn HmdDriverFactory_impl(iface: *const c_char) -> Result<*const c_void> {
 	// May be already installed
 	if tracing_subscriber::fmt().without_time().try_init().is_ok() {
@@ -44,10 +45,9 @@ fn HmdDriverFactory_impl(iface: *const c_char) -> Result<*const c_void> {
 	info!("requested interface: {ifacen:?}");
 
 	if ifacen == unsafe { CStr::from_ptr(IServerTrackedDeviceProvider_Version) } {
-		let provider = get_server_tracked_provider()?;
 		Ok(
 			VtableRef::into_raw(HasVtable::<IServerTrackedDeviceProviderVtable>::get(
-				&provider,
+				&SERVER_TRACKED_DEVICE_PROVIDER,
 			)) as *const _ as *const c_void,
 		)
 	} else {

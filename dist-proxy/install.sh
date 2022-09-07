@@ -40,7 +40,7 @@ else
 fi
 
 echo "= Patching real driver"
-sewer -v --backup $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so.bak $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so patch-file --partial driver_lighthouse_real.sew || true
+sewer -v --backup $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so.bak $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so patch-file --partial $SCRIPTPATH/driver_lighthouse_real.sew || true
 
 echo "= Overriding current driver"
 rsync -a $SCRIPTPATH/driver_lighthouse.so $LIGHTHOUSE_DRIVER/driver_lighthouse.so

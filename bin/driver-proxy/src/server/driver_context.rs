@@ -1,13 +1,9 @@
 use std::{
 	ffi::{c_void, CStr},
 	os::raw::c_char,
-	ptr::null_mut,
 };
 
-use crate::{
-	driver_host::get_driver_host, openvr::IVRServerDriverHostVtable, try_vr, vr_result, Error,
-	Result,
-};
+use crate::{driver_host::DRIVER_HOST, openvr::IVRServerDriverHostVtable, try_vr, Result};
 use cppvtbl::{impl_vtables, HasVtable, VtableRef, WithVtables};
 use once_cell::sync::OnceCell;
 use tracing::info;
@@ -36,13 +32,8 @@ impl IVRDriverContext for DriverContext {
 		let name = unsafe { CStr::from_ptr(pchInterfaceVersion) };
 		info!("get generic interface {name:?}");
 		if name == unsafe { CStr::from_ptr(IVRServerDriverHost_Version) } {
-			vr_result!(
-				result,
-				get_driver_host().map(|host| {
-					VtableRef::into_raw(HasVtable::<IVRServerDriverHostVtable>::get(host)) as *mut _
-				}),
-				null_mut()
-			)
+			VtableRef::into_raw(HasVtable::<IVRServerDriverHostVtable>::get(&*DRIVER_HOST))
+				as *mut _
 		} else {
 			self.real.GetGenericInterface(pchInterfaceVersion, result)
 		}
@@ -53,17 +44,15 @@ impl IVRDriverContext for DriverContext {
 	}
 }
 
-static DRIVER_CONTEXT: OnceCell<WithVtables<DriverContext>> = OnceCell::new();
-pub fn try_init_driver_context(real: &'static VtableRef<IVRDriverContextVtable>) -> Result<(), ()> {
-	if DRIVER_CONTEXT.get().is_some() {
-		return Ok(());
-	}
-	let context = WithVtables::new(DriverContext { real });
-	DRIVER_CONTEXT.set(context).map_err(|_| ())
-}
+pub static DRIVER_CONTEXT: OnceCell<WithVtables<DriverContext>> = OnceCell::new();
 
-pub fn get_driver_context() -> Result<&'static WithVtables<DriverContext>> {
+pub fn try_init_driver_context(real: &'static VtableRef<IVRDriverContextVtable>) {
+	if DRIVER_CONTEXT.get().is_some() {
+		return;
+	}
+	let new_ctx = WithVtables::new(DriverContext { real });
 	DRIVER_CONTEXT
-		.get()
-		.ok_or_else(|| Error::Internal("driver context is not initialized yet"))
+		.set(new_ctx)
+		.map_err(|_| ())
+		.expect("context is not set");
 }

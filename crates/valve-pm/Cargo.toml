@@ -1,0 +1,22 @@
+[package]
+name = "valve-pm"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# 0.7.3 used, because this is last sync version of this library
+btleplug = "0.10.0"
+# Same as used by old version of btleplug
+uuid = "1.1.2"
+
+ctrlc = "3.2.3"
+once_cell = "1.14.0"
+thiserror = "1.0.33"
+tracing = "0.1.36"
+tokio = { version = "1.21.0", features = ["macros"] }
+futures-util = "0.3.24"
+
+[dev-dependencies]
+tracing-subscriber = "0.3.15"

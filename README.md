@@ -15,12 +15,13 @@ Current implementation of driver intercepts some calls between SteamVR and commo
 - HMD image - standard interface (DP) used, however there are some things missing in kernel, see patches below
 - Audio output - standard interface used
 - Front facing camera - works, with minor noise/distortion, standard interface (UVC) used
+- Lighthouse power management
 - Headset, controllers, Vive tracker (tracking) - part of original driver
 - Headset/controllers firmware updates - part of original driver
 
 ### TODO
 
-- Configuration utilities - most of reconfiguration (resolution, noise cancelation, brightness) abilities are already reverse-engineered, they just aren't easly configurable, some GUI utility should be written
+- Configuration utilities - most of reconfiguration (resolution, noise cancelation, brightness, lighthouse power management) abilities are already reverse-engineered, they just aren't easly configurable, some GUI utility should be written
 - Focus knob overlay (Some third-party may work though). Focusing does work, but there is no visual helper.
 - Audio output is not targeted to correct device yet (You need to manually switch it every time), it should be possible to implement this feature in this driver however
 - Front facing camera noise - can be solved with some kernel tinkering (UVC driver)
@@ -58,9 +59,9 @@ Latest version of driver [automatically patches](https://github.com/CertainLach/
 
 In `steamvr.vrsettings`:
 
-`vivepro2.resolution`: `0-5`
+`vivepro2.resolution`: `0-5`, 0 by default, to make it most compatible with every hardware
 
-Reconfigures helmet before startup
+Reconfigures helmet to specified resolution/framerate before startup
 
 - 0 - 2448x1224 90fps
 - 1 - 2448x1224 120fps
@@ -71,17 +72,17 @@ Reconfigures helmet before startup
 
 Similar to original vive console utility
 
-`vivepro2.brightness`: `1-130`
+`vivepro2.brightness`: `1-130`, 130 by default
 
 Display brightness
 
 Original vive console seems to fade from 0 to 130 on start, and then no longer touch this setting
 
-`vivepro2.noiseCancel`: `true/false`
+`vivepro2.noiseCancel`: `true/false`, disabled by default
 
 Toggle built-in microphone noise canceling
 
-Similar option exists in vive console,
+Similar option exists in vive console
 
 ## Required kernel patches
 
@@ -101,6 +102,8 @@ boot.kernelPatches = vivepro2-linux-driver.kernelPatches;
 ```
 
 If you use arch btw, then you can use this kernel package with all required patches applied (i have not tested it, and can't provide any guarantees about contents of this repo): https://github.com/santeri3700/vive-pro-2-on-linux
+
+I don't recommend using other distributions, because it will be harder, because of usage of bleeding-edge kernel, but it should work, and I will fix any issues with them (I.e I have fixed usage of this driver on ubuntu)
 
 ## Donate
 

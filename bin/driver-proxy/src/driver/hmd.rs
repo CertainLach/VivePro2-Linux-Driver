@@ -140,7 +140,6 @@ impl IVRDisplayComponent for HmdDisplay {
 #[impl_vtables(ITrackedDeviceServerDriver)]
 pub struct HmdDriver {
 	// pub steam: Rc<SteamDevice>,
-	// pub vive: Rc<ViveDevice>,
 	pub lens: Rc<RefCell<Client>>,
 	pub real: &'static VtableRef<ITrackedDeviceServerDriverVtable>,
 	pub mode: Mode,

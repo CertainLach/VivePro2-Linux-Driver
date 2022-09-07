@@ -14,10 +14,12 @@ tracing-subscriber = "0.3.9"
 cppvtbl = "0.2.0"
 real_c_string = "1.0.0"
 
+valve-pm = { path = "../../crates/valve-pm" }
 vive-hid = { path = "../../crates/vive-hid" }
 lens-client = { path = "../../crates/lens-client" }
 lens-protocol = { path = "../../crates/lens-protocol" }
 openvr = { path = "../../crates/openvr" }
+tokio = { version = "1.21.0", features = ["rt", "rt-multi-thread"] }
 
 [lib]
 crate-type = ["cdylib"]

@@ -1,17 +1,20 @@
-#![feature(never_type, try_blocks)]
+#![feature(never_type, try_blocks, thread_local)]
 #![allow(non_snake_case)]
 
 #[macro_use]
 extern crate openvr;
 
-mod driver_context;
-mod driver_host;
+/// Wrappers for things, returned from original driver
+mod driver;
+pub use driver::{camera, hmd, server_tracked_provider};
+
+/// Wrappers for things, passed from vrserver to original driver
+mod server;
+pub use server::{driver_context, driver_host};
+
 #[macro_use]
 mod error;
-mod camera;
 mod factory;
-mod hmd;
-mod server_tracked_provider;
 #[macro_use]
 mod settings;
 mod log;
