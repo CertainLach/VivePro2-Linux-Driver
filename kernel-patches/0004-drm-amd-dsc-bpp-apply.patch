@@ -1,4 +1,7 @@
-drm/amd: use fixed dsc bits-per-pixel from edid
+From 7ff32d7fe87a88a66227e9d15179a299bde11d3d Mon Sep 17 00:00:00 2001
+From: Yaroslav Bolyukin <iam@lach.pw>
+Date: Sun, 30 Oct 2022 19:04:26 +0100
+Subject: [PATCH 2/2] drm/amd: use fixed dsc bits-per-pixel from edid
 
 VESA vendor header from DisplayID spec may contain fixed bit per pixel
 rate, it should be respected by drm driver
@@ -7,54 +10,50 @@ Signed-off-by: Yaroslav Bolyukin <iam@lach.pw>
 Reviewed-by: Wayne Lin <Wayne.Lin@amd.com>
 ---
  drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c | 2 ++
- drivers/gpu/drm/amd/display/dc/core/dc_stream.c           | 3 ++-
+ drivers/gpu/drm/amd/display/dc/core/dc_stream.c           | 2 ++
  drivers/gpu/drm/amd/display/dc/dc_types.h                 | 3 +++
- 3 files changed, 7 insertions(+), 1 deletion(-)
+ 3 files changed, 7 insertions(+)
 
 diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c
-index 29f07c26d..b34dd89ae 100644
+index f0b01c8dc..d4fa84fde 100644
 --- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c
 +++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c
-@@ -118,6 +118,8 @@ enum dc_edid_status dm_helpers_parse_edid_caps(
-
+@@ -120,6 +120,8 @@ enum dc_edid_status dm_helpers_parse_edid_caps(
+ 
  	edid_caps->edid_hdmi = connector->display_info.is_hdmi;
-
+ 
 +	edid_caps->dsc_fixed_bits_per_pixel_x16 = connector->display_info.dp_dsc_bpp;
 +
  	sad_count = drm_edid_to_sad((struct edid *) edid->raw_edid, &sads);
  	if (sad_count <= 0)
  		return result;
 diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_stream.c b/drivers/gpu/drm/amd/display/dc/core/dc_stream.c
-index 57cf4cb82..f8516ec70 100644
+index 38d71b5c1..f2467b642 100644
 --- a/drivers/gpu/drm/amd/display/dc/core/dc_stream.c
 +++ b/drivers/gpu/drm/amd/display/dc/core/dc_stream.c
-@@ -105,6 +105,8 @@ static bool dc_stream_construct(struct dc_stream_state *stream,
-
+@@ -103,6 +103,8 @@ static bool dc_stream_construct(struct dc_stream_state *stream,
+ 
  	/* EDID CAP translation for HDMI 2.0 */
  	stream->timing.flags.LTE_340MCSC_SCRAMBLE = dc_sink_data->edid_caps.lte_340mcsc_scramble;
 +	stream->timing.dsc_fixed_bits_per_pixel_x16 =
 +		dc_sink_data->edid_caps.dsc_fixed_bits_per_pixel_x16;
-
+ 
  	memset(&stream->timing.dsc_cfg, 0, sizeof(stream->timing.dsc_cfg));
  	stream->timing.dsc_cfg.num_slices_h = 0;
-@@ -738,4 +740,3 @@ void dc_stream_log(const struct dc *dc, const struct dc_stream_state *stream)
- 			"\tlink: %d\n",
- 			stream->link->link_index);
- }
--
 diff --git a/drivers/gpu/drm/amd/display/dc/dc_types.h b/drivers/gpu/drm/amd/display/dc/dc_types.h
-index 0285a4b38..ce2e11d70 100644
+index ad9041472..741eef518 100644
 --- a/drivers/gpu/drm/amd/display/dc/dc_types.h
 +++ b/drivers/gpu/drm/amd/display/dc/dc_types.h
-@@ -227,6 +227,9 @@ struct dc_edid_caps {
+@@ -231,6 +231,9 @@ struct dc_edid_caps {
  	bool edid_hdmi;
  	bool hdr_supported;
-
+ 
 +	/* DisplayPort caps */
 +	uint32_t dsc_fixed_bits_per_pixel_x16;
 +
  	struct dc_panel_patch panel_patch;
  };
+ 
+-- 
+2.38.0
 
---
-2.35.1
