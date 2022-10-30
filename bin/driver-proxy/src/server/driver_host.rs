@@ -138,11 +138,7 @@ impl IVRServerDriverHost for DriverHost {
 	}
 
 	fn PollNextEvent(&self, pEvent: *mut VREvent_t, uncbVREvent: u32) -> bool {
-		let id = std::thread::current().id();
-		info!("poll event start from {id:?}");
-		let r = self.real.PollNextEvent(pEvent, uncbVREvent);
-		info!("poll event finish");
-		r
+		self.real.PollNextEvent(pEvent, uncbVREvent)
 	}
 
 	fn GetRawTrackedDevicePoses(
