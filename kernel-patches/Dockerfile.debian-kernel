@@ -1,0 +1,13 @@
+FROM ubuntu:latest
+RUN apt update && apt install -y build-essential linux-source bc kmod cpio flex libncurses5-dev libelf-dev libssl-dev dwarves bison git
+RUN git clone https://anongit.freedesktop.org/git/drm/drm-misc.git -b drm-misc-next --depth=1 kernel
+
+RUN mkdir patches
+COPY 0001-drm-edid-non-desktop.patch 0003-drm-edid-dsc-bpp-parse.patch 0004-drm-amd-dsc-bpp-apply.patch patches/
+RUN cd kernel && git apply ../patches/*
+
+COPY .config kernel/
+
+RUN apt install -y rsync python3 zstd
+RUN cd kernel && nice make -j`nproc` bindeb-pkg
+RUN rm linux-image-*-dbg_*.deb && mv linux-image-*.deb linux.deb && mv linux-headers-*.deb headers.deb
