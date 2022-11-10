@@ -30,10 +30,8 @@ if ! test -f $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so; then
 	echo "= Moving original driver"
 	cp $LIGHTHOUSE_DRIVER/driver_lighthouse.so $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so
 elif ! grep -s "https://patreon.com/0lach" $LIGHTHOUSE_DRIVER/driver_lighthouse.so; then
-	echo "Original driver exists, but installed - is either old proxy, or updated original"
-	echo "If SteamVR will fail to start after this message - then reinstal, and start installation again"
-	echo "This check works better with new version of driver"
-	echo "= Moving original driver"
+	echo "Found both original driver, and old original driver, seems like SteamVR was updated"
+	echo "= Moving updated original driver"
 	cp $LIGHTHOUSE_DRIVER/driver_lighthouse.so $LIGHTHOUSE_DRIVER/driver_lighthouse_real.so
 else
 	echo "= Proxy driver is already installed, updating"
