@@ -1,0 +1,12 @@
+FROM archlinux:latest
+RUN pacman -Sy && pacman -S --noconfirm git bc libelf pahole cpio perl tar xz coreutils kmod initramfs base-devel
+RUN useradd -m build
+USER build
+WORKDIR /home/build
+
+RUN mkdir kernel
+RUN cd kernel && git clone https://anongit.freedesktop.org/git/drm/drm-misc.git -b drm-misc-next --depth=1 archlinux-linux
+COPY config PKGBUILD 0001-drm-edid-non-desktop.patch 0003-drm-edid-dsc-bpp-parse.patch 0004-drm-amd-dsc-bpp-apply.patch kernel/
+
+RUN cd kernel && makepkg --holdver
+RUN cd kernel && mv linux-*-headers-*.pkg.tar.zst headers.pkg.tar.zst && mv linux-*.pkg.tar.zst linux.pkg.tar.zst
