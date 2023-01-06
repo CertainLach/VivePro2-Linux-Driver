@@ -1,7 +1,7 @@
-From 7ff32d7fe87a88a66227e9d15179a299bde11d3d Mon Sep 17 00:00:00 2001
+From c33583995576e9ac532c4ad9e260324b1c4fa3a3 Mon Sep 17 00:00:00 2001
 From: Yaroslav Bolyukin <iam@lach.pw>
 Date: Sun, 30 Oct 2022 19:04:26 +0100
-Subject: [PATCH 2/2] drm/amd: use fixed dsc bits-per-pixel from edid
+Subject: [PATCH 3/3] drm/amd: use fixed dsc bits-per-pixel from edid
 
 VESA vendor header from DisplayID spec may contain fixed bit per pixel
 rate, it should be respected by drm driver
@@ -15,10 +15,10 @@ Reviewed-by: Wayne Lin <Wayne.Lin@amd.com>
  3 files changed, 7 insertions(+)
 
 diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c
-index f0b01c8dc..d4fa84fde 100644
+index e47098fa5aac..1c9c4925ed2f 100644
 --- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c
 +++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c
-@@ -120,6 +120,8 @@ enum dc_edid_status dm_helpers_parse_edid_caps(
+@@ -87,6 +87,8 @@ enum dc_edid_status dm_helpers_parse_edid_caps(
  
  	edid_caps->edid_hdmi = connector->display_info.is_hdmi;
  
@@ -28,7 +28,7 @@ index f0b01c8dc..d4fa84fde 100644
  	if (sad_count <= 0)
  		return result;
 diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_stream.c b/drivers/gpu/drm/amd/display/dc/core/dc_stream.c
-index 38d71b5c1..f2467b642 100644
+index 38d71b5c1f2d..f2467b64268b 100644
 --- a/drivers/gpu/drm/amd/display/dc/core/dc_stream.c
 +++ b/drivers/gpu/drm/amd/display/dc/core/dc_stream.c
 @@ -103,6 +103,8 @@ static bool dc_stream_construct(struct dc_stream_state *stream,
@@ -41,7 +41,7 @@ index 38d71b5c1..f2467b642 100644
  	memset(&stream->timing.dsc_cfg, 0, sizeof(stream->timing.dsc_cfg));
  	stream->timing.dsc_cfg.num_slices_h = 0;
 diff --git a/drivers/gpu/drm/amd/display/dc/dc_types.h b/drivers/gpu/drm/amd/display/dc/dc_types.h
-index ad9041472..741eef518 100644
+index dc78e2404b48..65915a10ab48 100644
 --- a/drivers/gpu/drm/amd/display/dc/dc_types.h
 +++ b/drivers/gpu/drm/amd/display/dc/dc_types.h
 @@ -231,6 +231,9 @@ struct dc_edid_caps {
@@ -55,5 +55,5 @@ index ad9041472..741eef518 100644
  };
  
 -- 
-2.38.0
+2.38.1
 

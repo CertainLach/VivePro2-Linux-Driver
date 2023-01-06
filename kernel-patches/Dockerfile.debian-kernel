@@ -3,7 +3,7 @@ RUN apt update && apt install -y build-essential linux-source bc kmod cpio flex 
 
 RUN git clone https://anongit.freedesktop.org/git/drm/drm-misc.git -b drm-misc-next --depth=1 kernel
 RUN mkdir patches
-COPY 0001-drm-edid-non-desktop.patch 0003-drm-edid-dsc-bpp-parse.patch 0004-drm-amd-dsc-bpp-apply.patch patches/
+COPY *.patch patches/
 RUN cd kernel && git apply ../patches/*
 COPY .config kernel/
 

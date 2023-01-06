@@ -16,9 +16,9 @@ _srcname=archlinux-linux
 source=(
   "$_srcname::git+https://anongit.freedesktop.org/git/drm/drm-misc.git#branch=$_branch"
   config         # the main kernel config file
-  0001-drm-edid-non-desktop.patch
-  0003-drm-edid-dsc-bpp-parse.patch
-  0004-drm-amd-dsc-bpp-apply.patch
+  0001-drm-edid-Add-Vive-Cosmos-Vive-Pro-2-to-non-desktop-l.patch
+  0002-drm-edid-parse-DRM-VESA-dsc-bpp-target.patch
+  0003-drm-amd-use-fixed-dsc-bits-per-pixel-from-edid.patch
 )
 sha256sums=('SKIP'
             'SKIP'
