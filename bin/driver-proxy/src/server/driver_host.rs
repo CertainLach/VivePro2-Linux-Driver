@@ -7,7 +7,7 @@ use std::os::raw::c_char;
 use std::rc::Rc;
 use tracing::{error, info};
 use valve_pm::{StationCommand, StationControl, StationState};
-use vive_hid::{SteamDevice, ViveDevice};
+use vive_hid::{SteamDevice, ViveCosmosDevice};
 
 use crate::driver_context::DRIVER_CONTEXT;
 use crate::factory::TOKIO_RUNTIME;
@@ -46,7 +46,7 @@ impl IVRServerDriverHost for DriverHost {
 				// Steam part is opened for checking if this is really a needed HMD device
 				let _steam = Rc::new(SteamDevice::open(&sn)?);
 				// We don't know for sure this device serial
-				let vive = Rc::new(ViveDevice::open_first()?);
+				let vive = Rc::new(ViveCosmosDevice::open_first()?);
 
 				let mode = {
 					let res = HMD_RESOLUTION.get();
@@ -62,24 +62,24 @@ impl IVRServerDriverHost for DriverHost {
 						.clone();
 					HMD_RESOLUTION.set(mode.id as i32);
 
-					vive.set_mode(mode.id)?;
+					// vive.set_mode(mode.id)?;
 					mode
 				};
-				{
-					let nc = NOISE_CANCEL.get();
-					NOISE_CANCEL.set(nc);
+				// {
+					// let nc = NOISE_CANCEL.get();
+					// NOISE_CANCEL.set(nc);
 
-					vive.toggle_noise_canceling(nc)?;
-				}
-				{
-					let mut brightness = BRIGHTNESS.get();
-					if brightness == 0 {
-						brightness = 130;
-					}
-					BRIGHTNESS.set(brightness);
+					// vive.toggle_noise_canceling(nc)?;
+				// }
+				// {
+					// let mut brightness = BRIGHTNESS.get();
+					// if brightness == 0 {
+						// brightness = 130;
+					// }
+					// BRIGHTNESS.set(brightness);
 
-					vive.set_brightness(brightness as u8)?;
-				}
+					// vive.set_brightness(brightness as u8)?;
+				// }
 
 				let config = vive.read_config()?;
 
