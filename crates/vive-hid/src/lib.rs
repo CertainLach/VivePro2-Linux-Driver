@@ -1,11 +1,11 @@
 use std::{io::Read, result};
 
-use flate2::read::ZlibDecoder;
+use flate2::{ read::{ZlibDecoder, GzDecoder}, DecompressError };
 use hidapi::{HidApi, HidDevice, HidError};
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
 use serde_json::Value;
-use tracing::error;
+use tracing::{ error, info };
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -21,6 +21,10 @@ pub enum Error {
 	ConfigReadFailed,
 	#[error("protocol error: {0}")]
 	ProtocolError(&'static str),
+    #[error("deflate error: {0}")]
+    DeflateError(#[from] DecompressError),
+    #[error("IO error: {0}")]
+    IOError(#[from] std::io::Error),
 }
 
 type Result<T, E = Error> = result::Result<T, E>;
@@ -134,7 +138,8 @@ impl SteamDevice {
 }
 
 const VIVE_VID: u16 = 0x0bb4;
-const VIVE_PID: u16 = 0x0342;
+const VIVE_PRO_2_PID: u16 = 0x0342;
+const VIVE_COSMOS_PID: u16 = 0x0313;
 
 #[derive(Deserialize, Debug)]
 pub struct ViveConfig {
@@ -175,11 +180,11 @@ const VIVE_PRO_2_MODES: [Mode; 6] = [
 	Mode::new(5, 2896, 2448, 120.0),
 ];
 
-pub struct ViveDevice(HidDevice);
-impl ViveDevice {
+pub struct VivePro2Device(HidDevice);
+impl VivePro2Device {
 	pub fn open_first() -> Result<Self> {
 		let api = get_hidapi()?;
-		let device = api.open(VIVE_VID, VIVE_PID)?;
+		let device = api.open(VIVE_VID, VIVE_PRO_2_PID)?;
 		Ok(Self(device))
 	}
 	pub fn open(sn: &str) -> Result<Self> {
@@ -188,7 +193,7 @@ impl ViveDevice {
 			.device_list()
 			.find(|dev| dev.serial_number() == Some(sn))
 			.ok_or(Error::DeviceNotFound)?;
-		if device.vendor_id() != VIVE_VID || device.product_id() != VIVE_PID {
+		if device.vendor_id() != VIVE_VID || device.product_id() != VIVE_PRO_2_PID {
 			return Err(Error::NotAVive);
 		}
 		let open = api.open_serial(device.vendor_id(), device.product_id(), sn)?;
@@ -285,7 +290,7 @@ impl ViveDevice {
 
 		serde_json::from_str(&string).map_err(|_| Error::ConfigReadFailed)
 	}
-	/// Always returns at least one mode
+	// Always returns at least one mode
 	pub fn query_modes(&self) -> Vec<Mode> {
 		VIVE_PRO_2_MODES.into_iter().collect()
 	}
@@ -327,4 +332,110 @@ impl ViveDevice {
 		}
 		Ok(())
 	}
+}
+
+const VIVE_COSMOS_MODES: [Mode; 1] = [
+    Mode::new(0, 2880, 1700, 90.0),
+];
+
+pub struct ViveCosmosDevice(HidDevice);
+use std::fs::File;
+use std::io::prelude::*;
+impl ViveCosmosDevice {
+
+	pub fn open_first() -> Result<Self> {
+		let api = get_hidapi()?;
+		let device = api.open(VIVE_VID, VIVE_COSMOS_PID)?;
+		Ok(Self(device))
+	}
+	pub fn open(sn: &str) -> Result<Self> {
+		let api = get_hidapi()?;
+		let device = api
+			.device_list()
+			.find(|dev| dev.serial_number() == Some(sn))
+			.ok_or(Error::DeviceNotFound)?;
+		if device.vendor_id() != VIVE_VID || device.product_id() != VIVE_COSMOS_PID {
+			return Err(Error::NotAVive);
+		}
+		let open = api.open_serial(device.vendor_id(), device.product_id(), sn)?;
+		Ok(Self(open))
+	}
+	// Always returns at least one mode
+	pub fn query_modes(&self) -> Vec<Mode> {
+		VIVE_COSMOS_MODES.into_iter().collect()
+	}
+    pub fn read_config(&self) -> Result<ViveConfig> {
+        let gz_file_buffer = self.read_stream(b"HMD_JSON.gz")?;
+
+        info!("received gzipped config file");
+
+        let mut file = File::create("/home/lanza/Projets/HMD_JSON.gz")
+			.map_err(|_| Error::ProtocolError("Impossible de créer le fichier"))?;
+        file.write(gz_file_buffer.as_slice())
+			.map_err(|_| Error::ProtocolError("Impossible d’écrire le fichier"))?;
+
+		let mut dec = GzDecoder::new(gz_file_buffer.as_slice());
+		let mut config = String::new();
+		dec.read_to_string(&mut config)?;
+ 
+        info!("config: {config}");
+
+		serde_json::from_str(&config).map_err(|_| Error::ConfigReadFailed)
+    }
+    pub fn read_stream(&self, filename: &[u8]) -> Result<Vec::<u8>> {
+        let mut report = [0u8; 65];
+
+        report[0] = 0x00; // id 0 -> root of the Application collection.
+        report[1] = 0x10; // the command I presume ?
+        report[2] = 0x00; // commant 2nd part ?
+        report[3] = filename.len() as u8; // payload size 
+        report[4] = 0xff; // separator ?
+        report[5..][..filename.len()].copy_from_slice(filename);
+
+        let total_len = {
+            self.0.send_feature_report(&report)?;
+
+            loop {
+                self.0.get_feature_report(&mut report)?;
+                if report[0] != 0x00 { return Err(Error::ProtocolError("unknown data received.")) }
+                if report[1] == 0x10 { break; }
+            }
+
+            let mut total_len = [0u8; 4];
+            total_len.copy_from_slice(&report[5..9]);
+            u32::from_le_bytes(total_len) as usize
+        };
+        info!("config read length : {total_len}");
+
+        let mut position = 0x0 as usize;
+		let mut out = Vec::<u8>::with_capacity(total_len);
+
+        while position < total_len {
+            report = [0u8;65];
+            report[1] = 0x11;
+            report[2] = 0x00;
+            report[3] = 0x08; //payload size;
+            report[4] = 0x80; // separator ?
+            report[5..9].copy_from_slice(&u32::to_le_bytes(position as u32)); // start position
+            report[9] = 0x38 ;
+
+            self.0.send_feature_report(&report)?;
+            loop {
+                self.0.get_feature_report(&mut report)?;
+                if report[0] != 0x00 { return Err(Error::ProtocolError("unknown data received.")) }
+                if report[1] == 0x11 { break; }
+            }
+
+            let size = (report[3] - 0x04) as usize;
+            out.extend_from_slice(&report[5..5 + size]);
+
+            position = position + size;
+            info!("position: {position}, size: {size}");
+        }
+        if position != total_len {
+            return Err(Error::ProtocolError("config size mismatch"));
+        }
+
+        Ok(out)
+    }
 }
