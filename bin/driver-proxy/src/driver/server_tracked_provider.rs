@@ -15,7 +15,7 @@ use cppvtbl::{impl_vtables, HasVtable, VtableRef, WithVtables};
 use once_cell::sync::Lazy;
 use tokio::task::LocalSet;
 use tracing::info;
-use valve_pm::{StationCommand, StationControl, StationState};
+use valve_pm::{start_manager, StationCommand, StationControl, StationState};
 
 use crate::openvr::{
 	EVRInitError, IServerTrackedDeviceProvider, IServerTrackedDeviceProviderVtable,
@@ -50,28 +50,39 @@ impl IServerTrackedDeviceProvider for ServerTrackedProvider {
 			_ => StationState::Sleeping,
 		};
 
-		if *self.standby_state.lock().expect("lock") != StationState::Unknown {
-			let _runtime = TOKIO_RUNTIME.enter();
-			let stations = BASE_STATIONS.get();
-			let stations: Vec<_> = stations
-				.split(",")
-				.filter(|s| !s.is_empty())
-				.filter_map(|line| {
-					let mut parts = line.split(":");
-					let name = parts.next()?;
-					let _bs2 = parts.next()?;
-					let enabled = parts.next()?;
+		'stations: {
+			if *self.standby_state.lock().expect("lock") != StationState::Unknown {
+				let _runtime = TOKIO_RUNTIME.enter();
+				let stations = BASE_STATIONS.get();
 
-					if enabled == "1" {
-						Some(name.to_owned())
-					} else {
-						None
-					}
-				})
-				.map(|name| StationControl::new(name.to_owned(), StationState::On))
-				.collect();
-			info!("enabled power management for {} stations", stations.len());
-			self.stations.lock().expect("lock").extend(stations);
+				let stations: Vec<_> = stations.split(",").filter(|s| !s.is_empty()).collect();
+				if stations.is_empty() {
+					break 'stations;
+				}
+				let Ok(manager) = TOKIO_RUNTIME.block_on(start_manager()) else {
+				break 'stations;
+			};
+				let stations: Vec<_> = stations
+					.iter()
+					.filter_map(|line| {
+						let mut parts = line.split(":");
+						let name = parts.next()?;
+						let _bs2 = parts.next()?;
+						let enabled = parts.next()?;
+
+						if enabled == "1" {
+							Some(name.to_owned())
+						} else {
+							None
+						}
+					})
+					.map(|name| {
+						StationControl::new(manager.clone(), name.to_owned(), StationState::On)
+					})
+					.collect();
+				info!("enabled power management for {} stations", stations.len());
+				self.stations.lock().expect("lock").extend(stations);
+			}
 		};
 
 		self.real.Init(

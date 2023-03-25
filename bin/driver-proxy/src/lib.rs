@@ -1,4 +1,4 @@
-#![feature(never_type, try_blocks, thread_local)]
+#![feature(never_type, try_blocks, thread_local, let_else)]
 #![allow(non_snake_case)]
 
 #[macro_use]

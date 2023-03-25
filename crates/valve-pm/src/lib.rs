@@ -1,11 +1,13 @@
 #![feature(try_blocks, let_else)]
 
+use btleplug::platform::Adapter;
 use btleplug::{
 	api::{Central, Manager as _, Peripheral, ScanFilter, WriteType},
 	platform::Manager,
 };
 use futures_util::StreamExt;
 use once_cell::sync::Lazy;
+use std::sync::Arc;
 use std::{result, str::FromStr, time::Duration};
 use tokio::{select, sync::mpsc, time::sleep};
 use tracing::{error, info, warn, Instrument};
@@ -55,66 +57,77 @@ pub enum StationCommand {
 	SetState(StationState),
 }
 
+pub async fn start_manager() -> Result<Arc<(Manager, Adapter)>, ()> {
+	let manager = match Manager::new().await {
+		Ok(manager) => manager,
+		Err(err) => {
+			error!("failed to create station manager: {err}");
+			return Err(());
+		}
+	};
+	let adapters = match manager.adapters().await {
+		Ok(adapters) => adapters,
+		Err(err) => {
+			error!("failed to enumerate adapters: {err}");
+			return Err(());
+		}
+	};
+	if adapters.is_empty() {
+		error!("no available bluetooth adapters");
+		return Err(());
+	}
+
+	let adapter = adapters
+		.iter()
+		// Prefer HTC adapter, which is already embedded in link box
+		// .find(|a| {
+		// 	let addr = if let Ok(addr) = a.name() {
+		// 		addr
+		// 	} else {
+		// 		return false;
+		// 	};
+		// 	!addr.address.starts_with(&HTC_MAC_PREFIX)
+		// })
+		// TODO: Ability to select adapter?
+		// .or_else(|| adapters.first())
+		.next()
+		.expect("len >= 1")
+		.clone();
+
+	info!(
+		"using adapter: {}",
+		adapter
+			.adapter_info()
+			.await
+			.unwrap_or_else(|_| "<unknown>".to_owned())
+	);
+
+	let _ = adapter.stop_scan().await;
+	if let Err(e) = adapter.start_scan(ScanFilter::default()).await {
+		warn!("failed to start scan: {e}");
+	}
+
+	Ok(Arc::new((manager, adapter)))
+}
+
 pub struct StationControl {
 	handle: Option<tokio::task::JoinHandle<()>>,
 	ctx: Option<mpsc::UnboundedSender<StationCommand>>,
 }
 impl StationControl {
 	#[tracing::instrument(name = "station_control")]
-	pub fn new(station_sn: String, initial_state: StationState) -> Self {
+	pub fn new(
+		man_adapter: Arc<(Manager, Adapter)>,
+		station_sn: String,
+		initial_state: StationState,
+	) -> Self {
 		let (ctx, mut crx) = mpsc::unbounded_channel();
 		let handle = tokio::task::spawn(
 			async move {
-				let manager = match Manager::new().await {
-					Ok(manager) => manager,
-					Err(err) => {
-						error!("failed to create station manager: {err}");
-						return;
-					}
-				};
-				let adapters = match manager.adapters().await {
-					Ok(adapters) => adapters,
-					Err(err) => {
-						error!("failed to enumerate adapters: {err}");
-						return;
-					}
-				};
-				if adapters.is_empty() {
-					error!("no available bluetooth adapters");
-					return;
-				}
-
-				let adapter = adapters
-					.iter()
-					// Prefer HTC adapter, which is already embedded in link box
-					// .find(|a| {
-					// 	let addr = if let Ok(addr) = a.name() {
-					// 		addr
-					// 	} else {
-					// 		return false;
-					// 	};
-					// 	!addr.address.starts_with(&HTC_MAC_PREFIX)
-					// })
-					// TODO: Ability to select adapter?
-					// .or_else(|| adapters.first())
-					.next()
-					.expect("len >= 1")
-					.clone();
-
-				info!(
-					"using adapter: {}",
-					adapter
-						.adapter_info()
-						.await
-						.unwrap_or_else(|_| "<unknown>".to_owned())
-				);
 
 				'rescan: loop {
+					let adapter = &man_adapter.1;
 					let res: Result<()> = try {
-						if let Err(e) = adapter.start_scan(ScanFilter::default()).await {
-							warn!("failed to start scan: {e}");
-						}
-
 						let peripherals = adapter.peripherals().await?;
 
 						for peripheral in peripherals {
@@ -135,6 +148,10 @@ impl StationControl {
 								info!("connecting");
 								peripheral.connect().await?;
 							}
+
+							// Against base station flakiness
+							tokio::time::sleep(Duration::from_millis(1500)).await;
+
 							if peripheral.characteristics().is_empty() {
 								info!("discovering characteristics");
 								peripheral.discover_services().await?;
