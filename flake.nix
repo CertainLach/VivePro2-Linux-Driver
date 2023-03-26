@@ -108,7 +108,10 @@
               path = ./.;
               filter = path: type: baseNameOf path != "flake.nix";
             };
-            cargoLock = { lockFile = ./Cargo.lock; };
+            cargoLock = {
+              lockFile = ./Cargo.lock;
+              outputHashes= {"btleplug-0.10.4" = "sha256-5uGO90fICmLOyEsHCSspM0oe/3uuYHCIZDD4vuNlcJc=";};
+            };
           in
           {
             driver-proxy = with pkgs;

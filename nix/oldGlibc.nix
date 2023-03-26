@@ -6,7 +6,9 @@ let nixpkgs-old = builtins.fetchTarball {
 in
 self: super:
 let
-  oldPkgs = import nixpkgs-old { system = super.system; };
+  oldPkgs = import nixpkgs-old {
+    system = super.system;
+  };
 in
 rec {
   glibc = oldPkgs.glibc // { pname = "glibc"; };
