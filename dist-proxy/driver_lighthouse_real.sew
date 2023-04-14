@@ -12,7 +12,7 @@
 +$1
 +\xeb\x20 # jmp
 
-# Driver requirement check
+# Driver requirement check (before 1.26.1)
 -(?x-u)
 -(
 -	\x49\x8b\x44\x24\x70 #mov
@@ -20,6 +20,19 @@
 -	\x48\x83\x7a\xe8\x00 #cmp
 -)
 -\x0f\x84\xd3\x0b # jz
+
++(?x)
++$1
++\xe9\xd4\x0b\x00 # jmp
+
+# Driver requirement check
+-(?x-u)
+-(
+-	\x49\x8b\x44\x24\x70
+-	\x48\x8b\x50\x48
+-	\x48\x83\x7a\xe8\x00
+-)
+-\x0f\x84\xb7\x0b
 
 +(?x)
 +$1
