@@ -1,5 +1,4 @@
 # Driver requirement check (before 1.25.7)
-
 -(?x-u)
 -(
 -	\x49\x8b\x44\x24\x70 # mov
@@ -36,4 +35,4 @@
 
 +(?x)
 +$1
-+\xe9\xd4\x0b\x00 # jmp
++\xe9\xb8\x0b\x00 # jmp
