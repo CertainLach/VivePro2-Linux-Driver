@@ -31,7 +31,7 @@
                   date = "2022-09-03";
                   channel = "nightly";
                 }).default.override {
-                  extensions = [ "rust-src" ];
+                  extensions = [ "rust-src" "rust-analyzer" ];
                   targets = [ "x86_64-unknown-linux-musl" ];
                 };
               in
@@ -155,6 +155,18 @@
                 '';
                 patchPhase = "true";
                 fixupPhase = "true";
+              };
+            driver-proxy-release-tar-zstd = with pkgs;
+              stdenv.mkDerivation {
+                inherit (packages.driver-proxy-release) version pname;
+                unpackPhase = "true";
+                patchPhase = "true";
+                fixupPhase = "true";
+                installPhase = ''
+                  mkdir $out/
+                  cd ${packages.driver-proxy-release} 
+                  tar -cv * | ${pkgs.zstd}/bin/zstd -9 > $out/driver.tar.zst
+                '';
               };
           };
         devShells = {
