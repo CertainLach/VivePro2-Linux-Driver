@@ -2,7 +2,8 @@
 	non_camel_case_types,
 	dead_code,
 	non_snake_case,
-	non_upper_case_globals
+	non_upper_case_globals,
+	clippy::not_unsafe_ptr_arg_deref
 )]
 
 use cppvtbl::{vtable, VtableRef};
@@ -48,6 +49,9 @@ pub union Union0 {
 	showDevTools: VREvent_ShowDevTools_t,
 	hdcpError: VREvent_HDCPError_t,
 }
+pub type PropertyTypeTag_t = u32;
+pub type vrshared_uint64_t = u64;
+pub type vrshared_double = f64;
 pub type SpatialAnchorHandle_t = u32;
 pub type glSharedTextureHandle_t = *mut c_void;
 pub type glInt_t = i32;
@@ -57,7 +61,6 @@ pub type DriverId_t = u32;
 pub type TrackedDeviceIndex_t = u32;
 pub type WebConsoleHandle_t = u64;
 pub type PropertyContainerHandle_t = u64;
-pub type PropertyTypeTag_t = u32;
 pub type DriverHandle_t = PropertyContainerHandle_t;
 pub type VRActionHandle_t = u64;
 pub type VRActionSetHandle_t = u64;
@@ -198,6 +201,8 @@ pub enum ETrackedDeviceProperty {
 	Prop_ManufacturerSerialNumber_String = 1049,
 	Prop_ComputedSerialNumber_String = 1050,
 	Prop_EstimatedDeviceFirstUseTime_Int32 = 1051,
+	Prop_DevicePowerUsage_Float = 1052,
+	Prop_IgnoreMotionForStandby_Bool = 1053,
 	Prop_ReportsTimeSinceVSync_Bool = 2000,
 	Prop_SecondsFromVsyncToPhotons_Float = 2001,
 	Prop_DisplayFrequency_Float = 2002,
@@ -286,10 +291,21 @@ pub enum ETrackedDeviceProperty {
 	Prop_CameraExposureTime_Float = 2088,
 	Prop_CameraGlobalGain_Float = 2089,
 	Prop_DashboardScale_Float = 2091,
+	Prop_PeerButtonInfo_String = 2092,
+	Prop_Hmd_SupportsHDR10_Bool = 2093,
+	Prop_Hmd_EnableParallelRenderCameras_Bool = 2094,
+	Prop_DriverProvidedChaperoneJson_String = 2095,
 	Prop_IpdUIRangeMinMeters_Float = 2100,
 	Prop_IpdUIRangeMaxMeters_Float = 2101,
 	Prop_Hmd_SupportsHDCP14LegacyCompat_Bool = 2102,
 	Prop_Hmd_SupportsMicMonitoring_Bool = 2103,
+	Prop_Hmd_SupportsDisplayPortTrainingMode_Bool = 2104,
+	Prop_Hmd_SupportsRoomViewDirect_Bool = 2105,
+	Prop_Hmd_SupportsAppThrottling_Bool = 2106,
+	Prop_Hmd_SupportsGpuBusMonitoring_Bool = 2107,
+	Prop_DSCVersion_Int32 = 2110,
+	Prop_DSCSliceCount_Int32 = 2111,
+	Prop_DSCBPPx16_Int32 = 2112,
 	Prop_DriverRequestedMuraCorrectionMode_Int32 = 2200,
 	Prop_DriverRequestedMuraFeather_InnerLeft_Int32 = 2201,
 	Prop_DriverRequestedMuraFeather_InnerRight_Int32 = 2202,
@@ -389,6 +405,7 @@ pub enum EVRSubmitFlags {
 	Submit_VulkanTextureWithArrayData = 64,
 	Submit_GlArrayTexture = 128,
 	Submit_Reserved2 = 32768,
+	Submit_Reserved3 = 65536,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(i32)]
@@ -441,13 +458,13 @@ pub enum EVREventType {
 	VREvent_InputFocusCaptured = 400,
 	VREvent_InputFocusReleased = 401,
 	VREvent_SceneApplicationChanged = 404,
-	VREvent_SceneFocusChanged = 405,
 	VREvent_InputFocusChanged = 406,
 	VREvent_SceneApplicationUsingWrongGraphicsAdapter = 408,
 	VREvent_ActionBindingReloaded = 409,
 	VREvent_HideRenderModels = 410,
 	VREvent_ShowRenderModels = 411,
 	VREvent_SceneApplicationStateChanged = 412,
+	VREvent_SceneAppPipeDisconnected = 413,
 	VREvent_ConsoleOpened = 420,
 	VREvent_ConsoleClosed = 421,
 	VREvent_OverlayShown = 500,
@@ -478,6 +495,9 @@ pub enum EVREventType {
 	VREvent_ShowDevTools = 529,
 	VREvent_DesktopViewUpdating = 530,
 	VREvent_DesktopViewReady = 531,
+	VREvent_StartDashboard = 532,
+	VREvent_ElevatePrism = 533,
+	VREvent_OverlayClosed = 534,
 	VREvent_Notification_Shown = 600,
 	VREvent_Notification_Hidden = 601,
 	VREvent_Notification_BeginInteraction = 602,
@@ -487,6 +507,7 @@ pub enum EVREventType {
 	VREvent_QuitAcknowledged = 703,
 	VREvent_DriverRequestedQuit = 704,
 	VREvent_RestartRequested = 705,
+	VREvent_InvalidateSwapTextureSets = 706,
 	VREvent_ChaperoneDataHasChanged = 800,
 	VREvent_ChaperoneUniverseHasChanged = 801,
 	VREvent_ChaperoneTempDataHasChanged = 802,
@@ -541,6 +562,7 @@ pub enum EVREventType {
 	VREvent_Compositor_OutOfVideoMemory = 1417,
 	VREvent_Compositor_DisplayModeNotSupported = 1418,
 	VREvent_Compositor_StageOverrideReady = 1419,
+	VREvent_Compositor_RequestDisconnectReconnect = 1420,
 	VREvent_TrackedCamera_StartVideoStream = 1500,
 	VREvent_TrackedCamera_StopVideoStream = 1501,
 	VREvent_TrackedCamera_PauseVideoStream = 1502,
@@ -597,6 +619,8 @@ pub enum EVRButtonId {
 	k_EButton_Axis2 = 34,
 	k_EButton_Axis3 = 35,
 	k_EButton_Axis4 = 36,
+	k_EButton_Reserved0 = 50,
+	k_EButton_Reserved1 = 51,
 	k_EButton_Max = 64,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -738,6 +762,7 @@ pub enum EVROverlayError {
 	VROverlayError_TextureAlreadyLocked = 31,
 	VROverlayError_TextureLockCapacityReached = 32,
 	VROverlayError_TextureNotLocked = 33,
+	VROverlayError_TimedOut = 34,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(i32)]
@@ -755,6 +780,7 @@ pub enum EVRApplicationType {
 	VRApplication_OpenXRScene = 10,
 	VRApplication_OpenXROverlay = 11,
 	VRApplication_Prism = 12,
+	VRApplication_RoomView = 13,
 	VRApplication_Max,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -845,8 +871,20 @@ pub enum EVRInitError {
 	VRInitError_Init_PrismNeedsNewDrivers = 151,
 	VRInitError_Init_PrismStartupTimedOut = 152,
 	VRInitError_Init_CouldNotStartPrism = 153,
-	VRInitError_Init_CreateDriverDirectDeviceFailed = 154,
-	VRInitError_Init_PrismExitedUnexpectedly = 155,
+	VRInitError_Init_PrismClientInitFailed = 154,
+	VRInitError_Init_PrismClientStartFailed = 155,
+	VRInitError_Init_PrismExitedUnexpectedly = 156,
+	VRInitError_Init_BadLuid = 157,
+	VRInitError_Init_NoServerForAppContainer = 158,
+	VRInitError_Init_DuplicateBootstrapper = 159,
+	VRInitError_Init_VRDashboardServicePending = 160,
+	VRInitError_Init_VRDashboardServiceTimeout = 161,
+	VRInitError_Init_VRDashboardServiceStopped = 162,
+	VRInitError_Init_VRDashboardAlreadyStarted = 163,
+	VRInitError_Init_VRDashboardCopyFailed = 164,
+	VRInitError_Init_VRDashboardTokenFailure = 165,
+	VRInitError_Init_VRDashboardEnvironmentFailure = 166,
+	VRInitError_Init_VRDashboardPathFailure = 167,
 	VRInitError_Driver_Failed = 200,
 	VRInitError_Driver_Unknown = 201,
 	VRInitError_Driver_HmdUnknown = 202,
@@ -860,6 +898,8 @@ pub enum EVRInitError {
 	VRInitError_Driver_HmdDriverIdOutOfBounds = 211,
 	VRInitError_Driver_HmdDisplayMirrored = 212,
 	VRInitError_Driver_HmdDisplayNotFoundLaptop = 213,
+	VRInitError_Driver_PeerDriverNotInstalled = 214,
+	VRInitError_Driver_WirelessHmdNotConnected = 215,
 	VRInitError_IPC_ServerInitFailed = 300,
 	VRInitError_IPC_ConnectFailed = 301,
 	VRInitError_IPC_SharedStateInitFailed = 302,
@@ -965,8 +1005,11 @@ pub enum EVRInitError {
 	VRInitError_Compositor_WindowInterfaceIsNull = 491,
 	VRInitError_Compositor_SystemLayerCreateInstance = 492,
 	VRInitError_Compositor_SystemLayerCreateSession = 493,
+	VRInitError_Compositor_CreateInverseDistortUVs = 494,
+	VRInitError_Compositor_CreateBackbufferDepth = 495,
 	VRInitError_VendorSpecific_UnableToConnectToOculusRuntime = 1000,
 	VRInitError_VendorSpecific_WindowsNotInDevMode = 1001,
+	VRInitError_VendorSpecific_OculusLinkNotEnabled = 1002,
 	VRInitError_VendorSpecific_HmdFound_CantOpenDevice = 1101,
 	VRInitError_VendorSpecific_HmdFound_UnableToRequestConfigStart = 1102,
 	VRInitError_VendorSpecific_HmdFound_NoStoredConfig = 1103,
@@ -981,6 +1024,7 @@ pub enum EVRInitError {
 	VRInitError_VendorSpecific_HmdFound_UserDataError = 1112,
 	VRInitError_VendorSpecific_HmdFound_ConfigFailedSanityCheck = 1113,
 	VRInitError_VendorSpecific_OculusRuntimeBadInstall = 1114,
+	VRInitError_VendorSpecific_HmdFound_UnexpectedConfiguration_1 = 1115,
 	VRInitError_Steam_SteamInstallationNotFound = 2000,
 	VRInitError_LastError,
 }
@@ -1079,6 +1123,7 @@ pub enum ECameraVideoStreamFormat {
 	CVS_FORMAT_YUYV16 = 5,
 	CVS_FORMAT_BAYER16BG = 6,
 	CVS_FORMAT_MJPEG = 7,
+	CVS_FORMAT_RGBX32 = 8,
 	CVS_MAX_FORMATS,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -1163,8 +1208,8 @@ pub enum EIOBufferMode {
 	IOBufferMode_Create = 512,
 }
 pub const k_nSteamVRVersionMajor: u32 = 1;
-pub const k_nSteamVRVersionMinor: u32 = 16;
-pub const k_nSteamVRVersionBuild: u32 = 8;
+pub const k_nSteamVRVersionMinor: u32 = 26;
+pub const k_nSteamVRVersionBuild: u32 = 7;
 pub const k_nDriverNone: u32 = 4294967295;
 pub const k_unMaxDriverDebugResponseSize: u32 = 32768;
 pub const k_unTrackedDeviceIndex_Hmd: u32 = 0;
@@ -1267,6 +1312,8 @@ pub const k_pch_SteamVR_MotionSmoothingOverride_Int32: *const c_char =
 pub const k_pch_SteamVR_FramesToThrottle_Int32: *const c_char = real_c_string!("framesToThrottle");
 pub const k_pch_SteamVR_AdditionalFramesToPredict_Int32: *const c_char =
 	real_c_string!("additionalFramesToPredict");
+pub const k_pch_SteamVR_WorldScale_Float: *const c_char = real_c_string!("worldScale");
+pub const k_pch_SteamVR_FovScale_Int32: *const c_char = real_c_string!("fovScale");
 pub const k_pch_SteamVR_DisableAsyncReprojection_Bool: *const c_char =
 	real_c_string!("disableAsync");
 pub const k_pch_SteamVR_ForceFadeOnBadTracking_Bool: *const c_char =
@@ -1310,7 +1357,6 @@ pub const k_pch_SteamVR_ForceWindows32bitVRMonitor: *const c_char =
 	real_c_string!("forceWindows32BitVRMonitor");
 pub const k_pch_SteamVR_DebugInputBinding: *const c_char = real_c_string!("debugInputBinding");
 pub const k_pch_SteamVR_DoNotFadeToGrid: *const c_char = real_c_string!("doNotFadeToGrid");
-pub const k_pch_SteamVR_RenderCameraMode: *const c_char = real_c_string!("renderCameraMode");
 pub const k_pch_SteamVR_EnableSharedResourceJournaling: *const c_char =
 	real_c_string!("enableSharedResourceJournaling");
 pub const k_pch_SteamVR_EnableSafeMode: *const c_char = real_c_string!("enableSafeMode");
@@ -1340,6 +1386,8 @@ pub const k_pch_SteamVR_BlockOculusSDKOnAllLaunches_Bool: *const c_char =
 	real_c_string!("blockOculusSDKOnAllLaunches");
 pub const k_pch_SteamVR_HDCPLegacyCompatibility_Bool: *const c_char =
 	real_c_string!("hdcp14legacyCompatibility");
+pub const k_pch_SteamVR_DisplayPortTrainingMode_Int: *const c_char =
+	real_c_string!("displayPortTrainingMode");
 pub const k_pch_SteamVR_UsePrism_Bool: *const c_char = real_c_string!("usePrism");
 pub const k_pch_DirectMode_Section: *const c_char = real_c_string!("direct_mode");
 pub const k_pch_DirectMode_Enable_Bool: *const c_char = real_c_string!("enable");
@@ -1403,6 +1451,7 @@ pub const k_pch_Perf_AllowTimingStore_Bool: *const c_char = real_c_string!("allo
 pub const k_pch_Perf_SaveTimingsOnExit_Bool: *const c_char = real_c_string!("saveTimingsOnExit");
 pub const k_pch_Perf_TestData_Float: *const c_char = real_c_string!("perfTestData");
 pub const k_pch_Perf_GPUProfiling_Bool: *const c_char = real_c_string!("GPUProfiling");
+pub const k_pch_Perf_GpuBusMonitoring_Bool: *const c_char = real_c_string!("gpuBusMonitoring");
 pub const k_pch_CollisionBounds_Section: *const c_char = real_c_string!("collisionBounds");
 pub const k_pch_CollisionBounds_Style_Int32: *const c_char = real_c_string!("CollisionBoundsStyle");
 pub const k_pch_CollisionBounds_GroundPerimeterOn_Bool: *const c_char =
@@ -1496,6 +1545,9 @@ pub const k_pch_Dashboard_DesktopScale: *const c_char = real_c_string!("desktopS
 pub const k_pch_Dashboard_DashboardScale: *const c_char = real_c_string!("dashboardScale");
 pub const k_pch_Dashboard_UseStandaloneSystemLayer: *const c_char =
 	real_c_string!("standaloneSystemLayer");
+pub const k_pch_Dashboard_StickyDashboard: *const c_char = real_c_string!("stickyDashboard");
+pub const k_pch_Dashboard_AllowSteamOverlays_Bool: *const c_char =
+	real_c_string!("allowSteamOverlays");
 pub const k_pch_modelskin_Section: *const c_char = real_c_string!("modelskins");
 pub const k_pch_Driver_Enable_Bool: *const c_char = real_c_string!("enable");
 pub const k_pch_Driver_BlockedBySafemode_Bool: *const c_char =
@@ -1510,6 +1562,7 @@ pub const k_pch_App_BindingAutosaveURLSuffix_String: *const c_char = real_c_stri
 pub const k_pch_App_BindingLegacyAPISuffix_String: *const c_char = real_c_string!("_legacy");
 pub const k_pch_App_BindingSteamVRInputAPISuffix_String: *const c_char =
 	real_c_string!("_steamvrinput");
+pub const k_pch_App_BindingOpenXRAPISuffix_String: *const c_char = real_c_string!("_openxr");
 pub const k_pch_App_BindingCurrentURLSuffix_String: *const c_char = real_c_string!("CurrentURL");
 pub const k_pch_App_BindingPreviousURLSuffix_String: *const c_char = real_c_string!("PreviousURL");
 pub const k_pch_App_NeedToUpdateAutosaveSuffix_Bool: *const c_char =
@@ -1532,9 +1585,9 @@ pub const k_pch_Input_ThumbstickDeadzone_Float: *const c_char =
 pub const k_pch_GpuSpeed_Section: *const c_char = real_c_string!("GpuSpeed");
 pub const ITrackedDeviceServerDriver_Version: *const c_char =
 	real_c_string!("ITrackedDeviceServerDriver_005");
-pub const IVRDisplayComponent_Version: *const c_char = real_c_string!("IVRDisplayComponent_002");
+pub const IVRDisplayComponent_Version: *const c_char = real_c_string!("IVRDisplayComponent_003");
 pub const IVRDriverDirectModeComponent_Version: *const c_char =
-	real_c_string!("IVRDriverDirectModeComponent_007");
+	real_c_string!("IVRDriverDirectModeComponent_008");
 pub const IVRCameraComponent_Version: *const c_char = real_c_string!("IVRCameraComponent_003");
 pub const IServerTrackedDeviceProvider_Version: *const c_char =
 	real_c_string!("IServerTrackedDeviceProvider_004");
@@ -1557,6 +1610,7 @@ pub const IVRIOBuffer_Version: *const c_char = real_c_string!("IVRIOBuffer_002")
 pub const IVRDriverManager_Version: *const c_char = real_c_string!("IVRDriverManager_001");
 pub const IVRDriverSpatialAnchors_Version: *const c_char =
 	real_c_string!("IVRDriverSpatialAnchors_001");
+pub const IVRExtendedDisplay_Version: *const c_char = real_c_string!("IVRExtendedDisplay_001");
 // pub const k_InterfaceVersions: [*const c_char; 12] = {REF, REF, REF, REF, REF, REF, REF, REF, REF, REF, REF, NULL};
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -1650,16 +1704,6 @@ pub struct Texture_t {
 }
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct TrackedDevicePose_t {
-	pub mDeviceToAbsoluteTracking: HmdMatrix34_t,
-	pub vVelocity: HmdVector3_t,
-	pub vAngularVelocity: HmdVector3_t,
-	pub eTrackingResult: ETrackingResult,
-	pub bPoseIsValid: bool,
-	pub bDeviceIsConnected: bool,
-}
-#[derive(Clone, Copy)]
-#[repr(C)]
 pub struct VRTextureBounds_t {
 	pub uMin: f32,
 	pub vMin: f32,
@@ -1687,6 +1731,16 @@ pub struct VRTextureWithDepth_t {
 #[repr(C)]
 pub struct VRTextureWithPoseAndDepth_t {
 	pub depth: VRTextureDepthInfo_t,
+}
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct TrackedDevicePose_t {
+	pub mDeviceToAbsoluteTracking: HmdMatrix34_t,
+	pub vVelocity: HmdVector3_t,
+	pub vAngularVelocity: HmdVector3_t,
+	pub eTrackingResult: ETrackingResult,
+	pub bPoseIsValid: bool,
+	pub bDeviceIsConnected: bool,
 }
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -2231,6 +2285,13 @@ pub trait IVRDisplayComponent {
 		pfBottom: *mut f32,
 	);
 	fn ComputeDistortion(&self, eEye: EVREye, fU: f32, fV: f32) -> DistortionCoordinates_t;
+	fn ComputeInverseDistortion(
+		&self,
+		idk1: *mut HmdVector2_t,
+		eEye: EVREye,
+		fU: f32,
+		fV: f32,
+	) -> i32;
 }
 #[vtable]
 pub trait IVRDriverContext {
@@ -2258,7 +2319,7 @@ pub trait IVRDriverDirectModeComponent {
 	);
 	fn SubmitLayer(&self, perEye: *const c_void);
 	fn Present(&self, syncTexture: SharedTextureHandle_t);
-	fn PostPresent(&self);
+	fn PostPresent(&self, pThrottling: *const c_void);
 	fn GetFrameTiming(&self, pFrameTiming: *mut DriverDirectMode_FrameTiming);
 }
 #[vtable]
@@ -2355,6 +2416,19 @@ pub trait IVRDriverSpatialAnchors {
 		punDescriptorBufferLenInOut: *mut u32,
 		bDecorated: bool,
 	) -> EVRSpatialAnchorError;
+}
+#[vtable]
+pub trait IVRExtendedDisplay {
+	fn GetWindowBounds(&self, pnX: *mut i32, pnY: *mut i32, pnWidth: *mut u32, pnHeight: *mut u32);
+	fn GetEyeOutputViewport(
+		&self,
+		eEye: EVREye,
+		pnX: *mut u32,
+		pnY: *mut u32,
+		pnWidth: *mut u32,
+		pnHeight: *mut u32,
+	);
+	fn GetDXGIOutputInfo(&self, pnAdapterIndex: *mut i32, pnAdapterOutputIndex: *mut i32);
 }
 #[vtable]
 pub trait IVRIOBuffer {

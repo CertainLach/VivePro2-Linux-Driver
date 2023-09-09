@@ -32,6 +32,7 @@ impl IVRDriverContext for DriverContext {
 		let name = unsafe { CStr::from_ptr(pchInterfaceVersion) };
 		info!("get generic interface {name:?}");
 		if name == unsafe { CStr::from_ptr(IVRServerDriverHost_Version) } {
+			info!("hooked!");
 			VtableRef::into_raw(HasVtable::<IVRServerDriverHostVtable>::get(&*DRIVER_HOST))
 				as *mut _
 		} else {

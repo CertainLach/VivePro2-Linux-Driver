@@ -6,11 +6,9 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::rc::Rc;
 use tracing::{error, info};
-use valve_pm::{StationCommand, StationControl, StationState};
 use vive_hid::{SteamDevice, ViveDevice};
 
 use crate::driver_context::DRIVER_CONTEXT;
-use crate::factory::TOKIO_RUNTIME;
 use crate::hmd::HmdDriver;
 use crate::openvr::{
 	Compositor_FrameTiming, DriverPose_t, ETrackedDeviceClass, EVREventType, HmdMatrix34_t,

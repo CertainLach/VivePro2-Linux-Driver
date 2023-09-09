@@ -8,6 +8,7 @@ use std::{
 use crate::Result;
 use cppvtbl::{impl_vtables, HasVtable, VtableRef, WithVtables};
 use lens_protocol::{Client, Eye};
+use openvr::HmdVector2_t;
 use tracing::{error, info, instrument};
 use vive_hid::Mode;
 
@@ -36,7 +37,6 @@ struct HmdDisplay {
 impl IVRDisplayComponent for HmdDisplay {
 	#[instrument(skip(self))]
 	fn GetWindowBounds(&self, pnX: *mut i32, pnY: *mut i32, pnWidth: *mut u32, pnHeight: *mut u32) {
-		// let err: Result<()> = try {
 		let Mode { width, height, .. } = self.mode;
 		unsafe {
 			*pnX = 0;
@@ -44,10 +44,6 @@ impl IVRDisplayComponent for HmdDisplay {
 			*pnWidth = width;
 			*pnHeight = height;
 		}
-		// 	return;
-		// };
-		// error!("failed: {}", err.err().unwrap());
-		// self.real.GetWindowBounds(pnX, pnY, pnWidth, pnHeight)
 	}
 
 	fn IsDisplayOnDesktop(&self) -> bool {
@@ -59,7 +55,11 @@ impl IVRDisplayComponent for HmdDisplay {
 	}
 
 	fn GetRecommendedRenderTargetSize(&self, pnWidth: *mut u32, pnHeight: *mut u32) {
-		self.real.GetRecommendedRenderTargetSize(pnWidth, pnHeight)
+		let Mode { width, height, .. } = self.mode;
+		unsafe {
+			*pnWidth = width;
+			*pnHeight = height;
+		}
 	}
 
 	#[instrument(skip(self))]
@@ -134,6 +134,18 @@ impl IVRDisplayComponent for HmdDisplay {
 		};
 		error!("failed: {}", err.err().unwrap());
 		self.real.ComputeDistortion(eEye, fU, fV)
+	}
+
+	fn ComputeInverseDistortion(
+		&self,
+		_idk1: *mut HmdVector2_t,
+		_eEye: EVREye,
+		_fU: f32,
+		_fV: f32,
+	) -> i32 {
+		// Not entirely sure what should this function do, but original impl has only `xor eax eax; retn` inside,
+		// so fine by me. Not delegating to real display, to prevent it from somehow breaking in the future.
+		0
 	}
 }
 

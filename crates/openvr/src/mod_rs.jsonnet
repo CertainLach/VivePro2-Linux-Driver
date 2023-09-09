@@ -14,7 +14,7 @@ local
 		k_EButton_SteamVR_Touchpad: null, k_EButton_SteamVR_Trigger: null,
 		k_EButton_Dashboard_Back: null,
 		k_EButton_IndexController_A: null, k_EButton_IndexController_B: null, k_EButton_IndexController_JoyStick: null,
-		VRSkeletalTrackingLevel_Count: null, VRSkeletalTrackingLevel_Max: null,
+		VRSkeletalTrackingLevel_Count: null, VRSkeletalTrackingLevel_Max: null, VRInputString_All: null,
 	},
 	fixedTypes = {
 		void: "c_void",
@@ -42,6 +42,7 @@ local
 	},
 	unions = {
 		'VREvent_Data_t': 'Union0',
+		'VROverlayIntersectionMaskPrimitive_Data_t': 'Union1',
 	};
 
 local
@@ -66,7 +67,7 @@ local
 	fixTypeName(typ_) =
 		local typ = fixTypeName_(typ_);
 		assert std.type(typ) == "string" : "%s => %s" % [ typ_, typ ];
-		if std.startsWith(typ, "*mut I") then "*const VtableRef<%sVtable>" % typ[5:]
+		if std.startsWith(typ, "*mut I") && !std.startsWith(typ, "*mut Input") then "*const VtableRef<%sVtable>" % typ[5:]
 		else typ,
 
 	fixFieldName(field) =
@@ -128,7 +129,8 @@ local
 		non_camel_case_types,
 		dead_code,
 		non_snake_case,
-		non_upper_case_globals
+		non_upper_case_globals,
+		clippy::not_unsafe_ptr_arg_deref,
 	)]
 
 	use cppvtbl::{vtable, VtableRef};
