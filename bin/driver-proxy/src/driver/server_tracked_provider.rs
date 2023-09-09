@@ -1,8 +1,4 @@
-use std::{
-	cell::{Cell, RefCell},
-	os::raw::c_char,
-	sync::Mutex,
-};
+use std::{os::raw::c_char, sync::Mutex};
 
 use crate::{
 	driver_context::{try_init_driver_context, DRIVER_CONTEXT},
@@ -27,7 +23,7 @@ const BASE_STATIONS: Setting<String> = setting!("driver_lighthouse", "PowerManag
 // 0 - disabled
 // 1 - sleep
 // 2 - standby
-const POWER_MANAGEMENT: Setting<i32> = setting!("steamvr", "basestationPowerManagement");
+const POWER_MANAGEMENT: Setting<i32> = setting!("vivepro2", "basestationPowerManagement");
 
 #[impl_vtables(IServerTrackedDeviceProvider)]
 pub struct ServerTrackedProvider {

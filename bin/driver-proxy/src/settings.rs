@@ -22,21 +22,21 @@ macro_rules! impl_setting {
 		impl Setting<$ty> {
 			#[instrument]
 			pub fn get(&self) -> $ty {
-				let err: Result<()> = try {
-					let mut err = EVRSettingsError::VRSettingsError_None;
-					return SETTINGS.$get_meth(self.0, self.1, &mut err);
-				};
-				error!("failed: {}", err.err().unwrap());
-				$default
+				let mut err = EVRSettingsError::VRSettingsError_None;
+				let v = SETTINGS.$get_meth(self.0, self.1, &mut err);
+				if err != EVRSettingsError::VRSettingsError_None {
+					error!("failed: {:?}", err);
+					return $default;
+				}
+				v
 			}
 			#[instrument]
 			pub fn set(&self, value: $ty) {
-				let err: Result<()> = try {
-					let mut err = EVRSettingsError::VRSettingsError_None;
-					SETTINGS.$set_meth(self.0, self.1, value, &mut err);
-					return;
-				};
-				error!("failed: {}", err.err().unwrap());
+				let mut err = EVRSettingsError::VRSettingsError_None;
+				SETTINGS.$set_meth(self.0, self.1, value, &mut err);
+				if err != EVRSettingsError::VRSettingsError_None {
+					error!("failed: {:?}", err);
+				}
 			}
 		}
 	};
