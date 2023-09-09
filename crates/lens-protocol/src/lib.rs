@@ -1,5 +1,5 @@
 use std::{
-	io::{self, StdinLock, StdoutLock, Write},
+	io::{self, StdinLock, StdoutLock, Read, Write},
 	process::{Child, ChildStdin, ChildStdout},
 	result,
 };
@@ -9,8 +9,8 @@ use serde_json::Value;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-	#[error("bincode error: {0}")]
-	Bincode(#[from] bincode::Error),
+	#[error("postcard error: {0}")]
+	Postcard(#[from] postcard::Error),
 	#[error("io error: {0}")]
 	Io(#[from] io::Error),
 	#[error("pipe failed")]
@@ -93,10 +93,12 @@ impl Client {
 	}
 	pub fn request<R: DeserializeOwned>(&mut self, request: &Request) -> Result<R> {
 		self.send(request)?;
-		Ok(bincode::deserialize_from(&mut self.stdout)?)
+		let data = read_message(&mut self.stdout)?;
+		Ok(postcard::from_bytes(&data)?)
 	}
 	pub fn send(&mut self, request: &Request) -> Result<()> {
-		bincode::serialize_into(&self.stdin, request)?;
+		let data = postcard::to_stdvec(&request)?;
+		write_message(&mut self.stdin, &data)?;
 		self.stdin.flush()?;
 		Ok(())
 	}
@@ -134,6 +136,21 @@ impl Drop for Client {
 extern "C" {
 	fn _setmode(fd: i32, mode: i32) -> i32;
 }
+	
+pub fn read_message(read: &mut impl Read) -> Result<Vec<u8>> {
+	let mut len_buf = [0; 4];
+	read.read_exact(&mut len_buf)?;
+	let len = u32::from_be_bytes(len_buf);
+	// This protocol isn't talkative, its ok to allocate here.
+	let mut data = vec![0; len as usize];
+	read.read_exact(&mut data)?;
+	Ok(data)
+}
+pub fn write_message(write: &mut impl Write, v: &[u8]) -> Result<()> {
+	write.write_all(&u32::to_be_bytes(v.len() as u32))?;
+	write.write_all(&v)?;
+	Ok(())
+}
 
 pub struct Server {
 	stdin: StdinLock<'static>,
@@ -165,10 +182,12 @@ impl Server {
 		}
 	}
 	pub fn recv(&mut self) -> Result<Request> {
-		Ok(bincode::deserialize_from(&mut self.stdin)?)
+		let data = read_message(&mut self.stdin)?;
+		Ok(postcard::from_bytes(&data)?)
 	}
 	pub fn send(&mut self, v: &impl Serialize) -> Result<()> {
-		bincode::serialize_into(&mut self.stdout, v)?;
+		let data = postcard::to_stdvec(&v)?;
+		write_message(&mut self.stdout, &data)?;
 		self.stdout.flush()?;
 		Ok(())
 	}
