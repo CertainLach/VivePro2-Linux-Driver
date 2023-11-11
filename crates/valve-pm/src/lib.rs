@@ -1,4 +1,4 @@
-#![feature(try_blocks, let_else)]
+#![feature(try_blocks)]
 
 use btleplug::platform::Adapter;
 use btleplug::{
