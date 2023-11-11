@@ -1,5 +1,4 @@
 use std::{
-	cell::RefCell,
 	ffi::{c_void, CStr},
 	os::raw::c_char,
 	rc::Rc,
@@ -7,7 +6,7 @@ use std::{
 
 use crate::Result;
 use cppvtbl::{impl_vtables, HasVtable, VtableRef, WithVtables};
-use lens_protocol::{Client, Eye};
+use lens_protocol::{Eye, LensClient};
 use openvr::HmdVector2_t;
 use tracing::{error, info, instrument};
 use vive_hid::Mode;
@@ -29,7 +28,7 @@ fn map_eye(eye: EVREye) -> Eye {
 struct HmdDisplay {
 	// steam: Rc<SteamDevice>,
 	// vive: Rc<ViveDevice>,
-	lens: Rc<RefCell<Client>>,
+	lens: Rc<dyn LensClient>,
 	real: &'static VtableRef<IVRDisplayComponentVtable>,
 	mode: Mode,
 }
@@ -100,12 +99,11 @@ impl IVRDisplayComponent for HmdDisplay {
 		pfBottom: *mut f32,
 	) {
 		let err: Result<()> = try {
-			let mut lens = self.lens.borrow_mut();
-			let result = lens.project(map_eye(eEye))?;
+			let result = self.lens.project(map_eye(eEye))?;
 			unsafe {
 				*pfLeft = result.left;
 				*pfRight = result.right;
-				if lens.matrix_needs_inversion()? {
+				if self.lens.matrix_needs_inversion()? {
 					*pfTop = result.bottom;
 					*pfBottom = result.top;
 				} else {
@@ -123,9 +121,10 @@ impl IVRDisplayComponent for HmdDisplay {
 	#[instrument(skip(self))]
 	fn ComputeDistortion(&self, eEye: EVREye, fU: f32, fV: f32) -> DistortionCoordinates_t {
 		let err: Result<()> = try {
-			let mut lens = self.lens.borrow_mut();
-			let inverse = lens.matrix_needs_inversion()?;
-			let result = lens.distort(map_eye(eEye), [fU, if inverse { 1.0 - fV } else { fV }])?;
+			let inverse = self.lens.matrix_needs_inversion()?;
+			let result = self
+				.lens
+				.distort(map_eye(eEye), [fU, if inverse { 1.0 - fV } else { fV }])?;
 			return DistortionCoordinates_t {
 				rfRed: result.red,
 				rfGreen: result.green,
@@ -152,7 +151,7 @@ impl IVRDisplayComponent for HmdDisplay {
 #[impl_vtables(ITrackedDeviceServerDriver)]
 pub struct HmdDriver {
 	// pub steam: Rc<SteamDevice>,
-	pub lens: Rc<RefCell<Client>>,
+	pub lens: Rc<dyn LensClient>,
 	pub real: &'static VtableRef<ITrackedDeviceServerDriverVtable>,
 	pub mode: Mode,
 }

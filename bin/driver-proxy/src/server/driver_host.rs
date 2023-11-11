@@ -1,11 +1,13 @@
 use cppvtbl::{impl_vtables, HasVtable, VtableRef, WithVtables};
 use lens_client::start_lens_server;
+use lens_protocol::{LensClient, StubClient};
 use once_cell::sync::Lazy;
-use std::cell::RefCell;
-use std::ffi::CStr;
+use std::env::var_os;
+use std::ffi::{CStr, OsString};
 use std::os::raw::c_char;
+use std::process::Command;
 use std::rc::Rc;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use vive_hid::{SteamDevice, ViveDevice};
 
 use crate::driver_context::DRIVER_CONTEXT;
@@ -81,9 +83,23 @@ impl IVRServerDriverHost for DriverHost {
 
 				let config = vive.read_config()?;
 
-				let lens = Rc::new(RefCell::new(start_lens_server(
-					config.inhouse_lens_correction,
-				)?));
+				let lens = start_lens_server(config.inhouse_lens_correction)
+					.map(|v| Rc::new(v) as Rc<dyn LensClient>)
+					.unwrap_or_else(|e| {
+						let zenity = var_os("STEAM_ZENITY").unwrap_or_else(|| OsString::from("zenity"));
+						let mut cmd = Command::new(zenity);
+						cmd.arg("--no-wrap").arg("--error").arg("--text").arg(format!("Lens distortion helper is failed to launch, HMD image most probaly will be distorted and unusable.\nError: {e}\n\nMake sure you have any recent version of proton installed."));
+						match cmd.spawn().and_then(|p| p.wait_with_output()) {
+							Ok(v) => {
+								info!("zenity finished: {}\n{:?}\n{:?}", v.status, v.stdout, v.stderr)
+							},
+							Err(e) => {
+								warn!("fatal error remains unnoticed: {e}")
+							},
+						}
+						error!("lens server start failed: {e}");
+						Rc::new(StubClient)
+					});
 				let real = unsafe { VtableRef::from_raw(pDriver) };
 
 				let hmd = Box::leak(Box::new(WithVtables::new(HmdDriver {

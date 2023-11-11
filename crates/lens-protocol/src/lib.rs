@@ -1,5 +1,6 @@
 use std::{
-	io::{self, StdinLock, StdoutLock, Read, Write},
+	cell::RefCell,
+	io::{self, Read, StdinLock, StdoutLock, Write},
 	process::{Child, ChildStdin, ChildStdout},
 	result,
 };
@@ -71,27 +72,66 @@ pub enum Request {
 	Exit,
 }
 
-pub struct Client {
+pub trait LensClient {
+	fn ping(&self, v: u32) -> Result<u32>;
+	fn project(&self, eye: Eye) -> Result<LeftRightTopBottom>;
+	fn matrix_needs_inversion(&self) -> Result<bool>;
+	fn distort(&self, eye: Eye, uv: [f32; 2]) -> Result<DistortOutput>;
+	fn set_config(&self, config: Value) -> Result<()>;
+	fn exit(&self) -> Result<()>;
+}
+
+pub struct StubClient;
+impl LensClient for StubClient {
+	fn ping(&self, v: u32) -> Result<u32> {
+		Ok(v)
+	}
+
+	fn project(&self, eye: Eye) -> Result<LeftRightTopBottom> {
+		Ok(match eye {
+			Eye::Left => LeftRightTopBottom {
+				left: -1.667393,
+				right: 0.821432,
+				top: -1.116938,
+				bottom: 1.122846,
+			},
+			Eye::Right => LeftRightTopBottom {
+				left: -0.822435,
+				right: 1.635135,
+				top: -1.138235,
+				bottom: 1.107449,
+			},
+		})
+	}
+
+	fn matrix_needs_inversion(&self) -> Result<bool> {
+		Ok(true)
+	}
+
+	fn distort(&self, _eye: Eye, uv: [f32; 2]) -> Result<DistortOutput> {
+		Ok(DistortOutput {
+			red: uv,
+			green: uv,
+			blue: uv,
+		})
+	}
+
+	fn set_config(&self, _config: Value) -> Result<()> {
+		Ok(())
+	}
+
+	fn exit(&self) -> Result<()> {
+		Ok(())
+	}
+}
+
+pub struct ServerClientInner {
 	stdin: ChildStdin,
 	stdout: ChildStdout,
 	child: Child,
 }
-impl Client {
-	pub fn open(mut child: Child, config: Value) -> Result<Self> {
-		let mut res = Self {
-			stdin: child.stdin.take().ok_or(Error::MissingPipe)?,
-			stdout: child.stdout.take().ok_or(Error::MissingPipe)?,
-			child,
-		};
-
-		if res.ping(0x12345678)? != 0x12345678 {
-			return Err(Error::MissingPipe);
-		}
-		res.set_config(config)?;
-
-		Ok(res)
-	}
-	pub fn request<R: DeserializeOwned>(&mut self, request: &Request) -> Result<R> {
+impl ServerClientInner {
+	fn request<R: DeserializeOwned>(&mut self, request: &Request) -> Result<R> {
 		self.send(request)?;
 		let data = read_message(&mut self.stdout)?;
 		Ok(postcard::from_bytes(&data)?)
@@ -102,30 +142,53 @@ impl Client {
 		self.stdin.flush()?;
 		Ok(())
 	}
-	pub fn set_config(&mut self, config: Value) -> Result<()> {
-		self.send(&Request::Init(config))?;
-		Ok(())
+}
+pub struct ServerClient(RefCell<ServerClientInner>);
+impl LensClient for ServerClient {
+	fn ping(&self, v: u32) -> Result<u32> {
+		self.0.borrow_mut().request(&Request::Ping(v))
 	}
-	pub fn ping(&mut self, v: u32) -> Result<u32> {
-		Ok(self.request(&Request::Ping(v))?)
+	fn project(&self, eye: Eye) -> Result<LeftRightTopBottom> {
+		self.0.borrow_mut().request(&Request::ProjectionRaw(eye))
 	}
-	pub fn project(&mut self, eye: Eye) -> Result<LeftRightTopBottom> {
-		Ok(self.request(&Request::ProjectionRaw(eye))?)
-	}
-	pub fn matrix_needs_inversion(&mut self) -> Result<bool> {
+	fn matrix_needs_inversion(&self) -> Result<bool> {
 		let v = self.project(Eye::Left)?;
 		Ok(v.top > v.bottom)
 	}
-	pub fn distort(&mut self, eye: Eye, uv: [f32; 2]) -> Result<DistortOutput> {
-		self.request(&Request::Distort(eye, uv))
+	fn distort(&self, eye: Eye, uv: [f32; 2]) -> Result<DistortOutput> {
+		self.0.borrow_mut().request(&Request::Distort(eye, uv))
 	}
-	pub fn exit(&mut self) {
+
+	fn set_config(&self, config: Value) -> Result<()> {
+		self.0.borrow_mut().send(&Request::Init(config))?;
+		Ok(())
+	}
+
+	fn exit(&self) -> Result<()> {
 		// Flush may fail in case if exit succeeded
-		let _ = self.send(&Request::Exit);
-		self.child.wait().unwrap();
+		let _ = self.0.borrow_mut().send(&Request::Exit);
+		self.0.borrow_mut().child.wait().unwrap();
+		Ok(())
 	}
 }
-impl Drop for Client {
+impl ServerClient {
+	pub fn open(mut child: Child, config: Value) -> Result<Self> {
+		let res = Self(RefCell::new(ServerClientInner {
+			stdin: child.stdin.take().ok_or(Error::MissingPipe)?,
+			stdout: child.stdout.take().ok_or(Error::MissingPipe)?,
+			child,
+		}));
+
+		if res.ping(0x12345678)? != 0x12345678 {
+			return Err(Error::MissingPipe);
+		}
+		res.set_config(config)?;
+
+		Ok(res)
+	}
+	pub fn exit(&mut self) {}
+}
+impl Drop for ServerClient {
 	fn drop(&mut self) {
 		self.exit()
 	}
@@ -136,7 +199,7 @@ impl Drop for Client {
 extern "C" {
 	fn _setmode(fd: i32, mode: i32) -> i32;
 }
-	
+
 pub fn read_message(read: &mut impl Read) -> Result<Vec<u8>> {
 	let mut len_buf = [0; 4];
 	read.read_exact(&mut len_buf)?;
@@ -148,7 +211,7 @@ pub fn read_message(read: &mut impl Read) -> Result<Vec<u8>> {
 }
 pub fn write_message(write: &mut impl Write, v: &[u8]) -> Result<()> {
 	write.write_all(&u32::to_be_bytes(v.len() as u32))?;
-	write.write_all(&v)?;
+	write.write_all(v)?;
 	Ok(())
 }
 
