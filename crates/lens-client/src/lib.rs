@@ -120,9 +120,6 @@ pub fn start_lens_server_with(
 		return Err(Error::ServerExeNotFound(server_path.to_owned()));
 	}
 
-	for var in vars_os() {
-		dbg!(var);
-	}
 	let mut child = Command::new(wine);
 	if is_proton {
 		child
@@ -139,7 +136,6 @@ pub fn start_lens_server_with(
 		.stdin(Stdio::piped())
 		.stdout(Stdio::piped())
 		.stderr(Stdio::inherit());
-	 dbg!(&child);
 	let child = child.spawn()?;
 
 	Ok(ServerClient::open(child, config)?)
