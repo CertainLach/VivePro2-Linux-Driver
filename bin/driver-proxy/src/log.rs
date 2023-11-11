@@ -7,7 +7,8 @@ use crate::openvr::{IVRDriverLog, IVRDriverLogVtable};
 
 static DRIVER_LOG: OnceCell<&'static VtableRef<IVRDriverLogVtable>> = OnceCell::new();
 
-struct LogWriter(Vec<u8>);
+#[derive(Default)]
+pub struct LogWriter(Vec<u8>);
 impl LogWriter {
 	fn flush_line(&mut self) {
 		if let Some(driver) = DRIVER_LOG.get() {
@@ -27,11 +28,16 @@ impl Write for LogWriter {
 			self.flush_line();
 			buf = &buf[pos + 1..];
 		}
-		self.0.extend_from_slice(&buf);
+		self.0.extend_from_slice(buf);
 		Ok(buf.len())
 	}
 
 	fn flush(&mut self) -> std::io::Result<()> {
+		self.flush_line();
 		Ok(())
 	}
+}
+
+pub fn try_init_driver_log(log: &'static VtableRef<IVRDriverLogVtable>) {
+	let _ = DRIVER_LOG.set(log);
 }

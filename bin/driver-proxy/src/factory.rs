@@ -4,7 +4,9 @@ use std::{
 	ptr::null,
 };
 
-use crate::{server_tracked_provider::SERVER_TRACKED_DEVICE_PROVIDER, Error, Result};
+use crate::{
+	log::LogWriter, server_tracked_provider::SERVER_TRACKED_DEVICE_PROVIDER, Error, Result,
+};
 use cppvtbl::{HasVtable, VtableRef};
 use libloading::{Library, Symbol};
 use once_cell::sync::{Lazy, OnceCell};
@@ -36,7 +38,12 @@ pub static TOKIO_RUNTIME: Lazy<Runtime> =
 
 fn HmdDriverFactory_impl(iface: *const c_char) -> Result<*const c_void> {
 	// May be already installed
-	if tracing_subscriber::fmt().without_time().try_init().is_ok() {
+	if tracing_subscriber::fmt()
+		.without_time()
+		.with_writer(LogWriter::default)
+		.try_init()
+		.is_ok()
+	{
 		// This magic string is also used for installation detection!
 		info!("https://patreon.com/0lach");
 	}

@@ -3,12 +3,14 @@ use std::{os::raw::c_char, sync::Mutex};
 use crate::{
 	driver_context::{try_init_driver_context, DRIVER_CONTEXT},
 	factory::{get_hmd_driver_factory, TOKIO_RUNTIME},
+	log::try_init_driver_log,
 	setting,
 	settings::Setting,
 	try_vr,
 };
 use cppvtbl::{impl_vtables, HasVtable, VtableRef, WithVtables};
 use once_cell::sync::Lazy;
+use openvr::{IVRDriverLogVtable, IVRDriverLog_Version};
 use tokio::task::LocalSet;
 use tracing::info;
 use valve_pm::{start_manager, StationCommand, StationControl, StationState};
@@ -36,8 +38,13 @@ impl IServerTrackedDeviceProvider for ServerTrackedProvider {
 		&self,
 		pDriverContext: *const cppvtbl::VtableRef<IVRDriverContextVtable>,
 	) -> EVRInitError {
-		let _ = try_init_driver_context(unsafe { &*pDriverContext });
+		try_init_driver_context(unsafe { &*pDriverContext });
 		let context = DRIVER_CONTEXT.get().expect("context just initialized");
+		let logger: *const cppvtbl::VtableRef<IVRDriverLogVtable> = context
+			.get_generic_interface(IVRDriverLog_Version)
+			.expect("always able to initialize driver log")
+			.cast();
+		try_init_driver_log(unsafe { &*logger });
 
 		let power_management = POWER_MANAGEMENT.get();
 		*self.standby_state.lock().expect("lock") = match power_management {
@@ -56,8 +63,8 @@ impl IServerTrackedDeviceProvider for ServerTrackedProvider {
 					break 'stations;
 				}
 				let Ok(manager) = TOKIO_RUNTIME.block_on(start_manager()) else {
-				break 'stations;
-			};
+					break 'stations;
+				};
 				let stations: Vec<_> = stations
 					.iter()
 					.filter_map(|line| {
