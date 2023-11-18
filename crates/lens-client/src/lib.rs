@@ -123,11 +123,12 @@ pub fn start_lens_server_with(
 	let mut child = Command::new(wine);
 	if is_proton {
 		child
-			.arg("run")
+			.arg("runinprefix")
 			.arg("start.exe")
-			.arg("/b")
 			.arg("/wait")
-			.arg("/exec");
+			.arg("/i")
+			.arg("/b")
+			.arg("/unix");
 	}
 	child
 		// fixme slows down responses
