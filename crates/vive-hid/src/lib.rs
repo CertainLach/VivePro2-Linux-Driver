@@ -172,7 +172,7 @@ const VIVE_PRO_2_MODES: [Mode; 6] = [
 	Mode::new(2, 3264, 1632, 90.0),
 	Mode::new(3, 3680, 1836, 90.0),
 	Mode::new(4, 4896, 2448, 90.0),
-	Mode::new(5, 2896, 2448, 120.0),
+	Mode::new(5, 4896, 2448, 120.0),
 ];
 
 pub struct ViveDevice(HidDevice);
