@@ -51,15 +51,11 @@ impl IVRServerDriverHost for DriverHost {
 				let mode = {
 					let res = HMD_RESOLUTION.get();
 					let modes = vive.query_modes();
-					let mode = modes
-						.iter()
-						.find(|m| m.id == res as u8)
-						.unwrap_or(
-							modes
-								.first()
-								.expect("device has at least one mode if opened"),
-						)
-						.clone();
+					let mode = *modes.iter().find(|m| m.id == res as u8).unwrap_or(
+						modes
+							.first()
+							.expect("device has at least one mode if opened"),
+					);
 					HMD_RESOLUTION.set(mode.id as i32);
 
 					vive.set_mode(mode.id)?;
@@ -81,9 +77,9 @@ impl IVRServerDriverHost for DriverHost {
 					vive.set_brightness(brightness as u8)?;
 				}
 
-				let config = vive.read_config()?;
+				let vive_config = vive.read_config()?;
 
-				let lens = start_lens_server(config.inhouse_lens_correction)
+				let lens = start_lens_server(vive_config.inhouse_lens_correction.clone())
 					.map(|v| Rc::new(v) as Rc<dyn LensClient>)
 					.unwrap_or_else(|e| {
 						let zenity = var_os("STEAM_ZENITY").unwrap_or_else(|| OsString::from("zenity"));
@@ -104,7 +100,8 @@ impl IVRServerDriverHost for DriverHost {
 
 				let hmd = Box::leak(Box::new(WithVtables::new(HmdDriver {
 					// steam,
-					// vive,
+					vive,
+					vive_config,
 					lens,
 					real,
 					mode,

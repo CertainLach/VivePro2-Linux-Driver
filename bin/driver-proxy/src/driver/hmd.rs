@@ -16,7 +16,7 @@ use openvr::{
 	HmdVector2_t, IVRProperties, PropertyWrite_t,
 };
 use tracing::{error, info, instrument};
-use vive_hid::Mode;
+use vive_hid::{Mode, ViveConfig, ViveDevice};
 
 use crate::openvr::{
 	DistortionCoordinates_t, DriverPose_t, EVREye, EVRInitError, ITrackedDeviceServerDriver,
@@ -157,7 +157,8 @@ impl IVRDisplayComponent for HmdDisplay {
 
 #[impl_vtables(ITrackedDeviceServerDriver)]
 pub struct HmdDriver {
-	// pub steam: Rc<SteamDevice>,
+	pub vive: Rc<ViveDevice>,
+	pub vive_config: ViveConfig,
 	pub lens: Rc<dyn LensClient>,
 	pub real: &'static VtableRef<ITrackedDeviceServerDriverVtable>,
 	pub mode: Mode,
@@ -183,12 +184,35 @@ impl ITrackedDeviceServerDriver for HmdDriver {
 					PropertyValue::Bool(true),
 				),
 				Property::new(
+					ETrackedDeviceProperty::Prop_SecondsFromVsyncToPhotons_Float,
+					PropertyValue::Float(
+						(1.0 / self.mode.frame_rate) + self.mode.extra_photon_vsync,
+					),
+				),
+				// Property::new(
+				// 	ETrackedDeviceProperty::Prop_MinimumIpdStepMeters_Float,
+				// 	PropertyValue::Float(0.0005),
+				// ),
+				// Property::new(
+				// 	ETrackedDeviceProperty::Prop_UserIpdMeters_Float,
+				// 	// TODO
+				// 	PropertyValue::Float(0.0005),
+				// ),
+				Property::new(
+					ETrackedDeviceProperty::Prop_UserHeadToEyeDepthMeters_Float,
+					PropertyValue::Float(0.015),
+				),
+				Property::new(
 					ETrackedDeviceProperty::Prop_DisplayAvailableFrameRates_Float_Array,
 					PropertyValue::FloatArray(if self.mode.frame_rate == 90.0 {
 						vec![90.0, 120.0]
 					} else {
 						vec![120.0, 90.0]
 					}),
+				),
+				Property::new(
+					ETrackedDeviceProperty::Prop_DisplaySupportsRuntimeFramerateChange_Bool,
+					PropertyValue::Bool(true),
 				),
 			],
 		);
