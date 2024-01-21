@@ -4,10 +4,17 @@ use std::{
 	rc::Rc,
 };
 
-use crate::Result;
+use crate::{
+	driver_context::{self, DRIVER_CONTEXT},
+	settings::{set_properties, Property, PropertyValue, PROPERTIES},
+	Result,
+};
 use cppvtbl::{impl_vtables, HasVtable, VtableRef, WithVtables};
 use lens_protocol::{Eye, LensClient};
-use openvr::HmdVector2_t;
+use openvr::{
+	k_unFloatPropertyTag, EPropertyWriteType, ETrackedDeviceProperty, ETrackedPropertyError,
+	HmdVector2_t, IVRProperties, PropertyWrite_t,
+};
 use tracing::{error, info, instrument};
 use vive_hid::Mode;
 
@@ -158,7 +165,35 @@ pub struct HmdDriver {
 
 impl ITrackedDeviceServerDriver for HmdDriver {
 	fn Activate(&self, unObjectId: u32) -> EVRInitError {
-		self.real.Activate(unObjectId)
+		let res = self.real.Activate(unObjectId);
+		if res != EVRInitError::VRInitError_None {
+			return res;
+		}
+		let container = PROPERTIES.TrackedDeviceToPropertyContainer(unObjectId);
+
+		set_properties(
+			container,
+			vec![
+				Property::new(
+					ETrackedDeviceProperty::Prop_DisplayFrequency_Float,
+					PropertyValue::Float(self.mode.frame_rate),
+				),
+				Property::new(
+					ETrackedDeviceProperty::Prop_DisplaySupportsMultipleFramerates_Bool,
+					PropertyValue::Bool(true),
+				),
+				Property::new(
+					ETrackedDeviceProperty::Prop_DisplayAvailableFrameRates_Float_Array,
+					PropertyValue::FloatArray(if self.mode.frame_rate == 90.0 {
+						vec![90.0, 120.0]
+					} else {
+						vec![120.0, 90.0]
+					}),
+				),
+			],
+		);
+
+		EVRInitError::VRInitError_None
 	}
 
 	fn Deactivate(&self) {

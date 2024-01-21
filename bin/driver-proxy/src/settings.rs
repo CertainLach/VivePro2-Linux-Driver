@@ -1,8 +1,13 @@
-use std::ffi::CString;
+use std::ffi::{c_void, CString};
 use std::{marker::PhantomData, os::raw::c_char};
 
 use cppvtbl::VtableRef;
 use once_cell::sync::Lazy;
+use openvr::{
+	k_unBoolPropertyTag, k_unFloatPropertyTag, EPropertyWriteType, ETrackedDeviceProperty,
+	ETrackedPropertyError, IVRProperties, IVRPropertiesVtable, IVRProperties_Version,
+	PropertyWrite_t,
+};
 use tracing::{error, instrument};
 
 use crate::driver_context::DRIVER_CONTEXT;
@@ -101,4 +106,67 @@ pub static SETTINGS: Lazy<&'static VtableRef<IVRSettingsVtable>> = Lazy::new(|| 
 		.get_generic_interface(IVRSettings_Version)
 		.expect("there should be settings interface");
 	unsafe { VtableRef::from_raw(raw as *const VtableRef<IVRSettingsVtable>) }
+});
+
+pub enum PropertyValue {
+	Float(f32),
+	FloatArray(Vec<f32>),
+	Bool(bool),
+}
+impl PropertyValue {
+	fn tag(&self) -> u32 {
+		match self {
+			Self::Float(_) | Self::FloatArray(_) => k_unFloatPropertyTag,
+			Self::Bool(_) => k_unBoolPropertyTag,
+		}
+	}
+	fn size(&self) -> u32 {
+		match self {
+			PropertyValue::Float(_) => 4,
+			PropertyValue::FloatArray(v) => 4 * v.len() as u32,
+			PropertyValue::Bool(_) => 1,
+		}
+	}
+	fn buf(&mut self) -> *mut c_void {
+		match self {
+			PropertyValue::Float(f) => (f as *mut f32).cast(),
+			PropertyValue::FloatArray(f) => f.as_mut_ptr().cast(),
+			PropertyValue::Bool(v) => (v as *mut bool).cast(),
+		}
+	}
+}
+pub struct Property {
+	name: ETrackedDeviceProperty,
+	value: PropertyValue,
+}
+impl Property {
+	pub fn new(name: ETrackedDeviceProperty, value: PropertyValue) -> Self {
+		Self { name, value }
+	}
+}
+pub fn set_properties(container: u64, mut props: Vec<Property>) {
+	let mut batch = Vec::with_capacity(props.len());
+	for prop in props.iter_mut() {
+		batch.push(PropertyWrite_t {
+			writeType: EPropertyWriteType::PropertyWrite_Set,
+			prop: prop.name,
+			unTag: prop.value.tag(),
+			unBufferSize: prop.value.size(),
+			pvBuffer: prop.value.buf(),
+
+			eError: ETrackedPropertyError::TrackedProp_Success,
+			eSetError: ETrackedPropertyError::TrackedProp_Success,
+		});
+	}
+	PROPERTIES.WritePropertyBatch(container, batch.as_mut_ptr(), batch.len() as u32);
+}
+
+pub static PROPERTIES: Lazy<&'static VtableRef<IVRPropertiesVtable>> = Lazy::new(|| {
+	let ctx = DRIVER_CONTEXT
+		.get()
+		.expect("context should be initialized at this point");
+	let raw = ctx
+		.get_generic_interface(IVRProperties_Version)
+		.expect("there should be properties interface");
+	unsafe { VtableRef::from_raw(raw as *const VtableRef<IVRPropertiesVtable>) }
 });
