@@ -27,7 +27,7 @@ type Result<T, E = Error> = result::Result<T, E>;
 
 static HIDAPI: OnceCell<HidApi> = OnceCell::new();
 pub fn get_hidapi() -> Result<&'static HidApi> {
-	HIDAPI.get_or_try_init(|| HidApi::new()).map_err(From::from)
+	HIDAPI.get_or_try_init(HidApi::new).map_err(From::from)
 }
 
 const STEAM_VID: u16 = 0x28de;
@@ -154,25 +154,33 @@ pub struct Mode {
 	pub width: u32,
 	pub height: u32,
 	pub frame_rate: f32,
+	pub extra_photon_vsync: f32,
 }
 impl Mode {
-	const fn new(id: u8, width: u32, height: u32, frame_rate: f32) -> Self {
+	const fn new(
+		id: u8,
+		width: u32,
+		height: u32,
+		frame_rate: f32,
+		extra_photon_vsync: f32,
+	) -> Self {
 		Self {
 			id,
 			width,
 			height,
 			frame_rate,
+			extra_photon_vsync,
 		}
 	}
 }
 
 const VIVE_PRO_2_MODES: [Mode; 6] = [
-	Mode::new(0, 2448, 1224, 90.0),
-	Mode::new(1, 2448, 1224, 120.0),
-	Mode::new(2, 3264, 1632, 90.0),
-	Mode::new(3, 3680, 1836, 90.0),
-	Mode::new(4, 4896, 2448, 90.0),
-	Mode::new(5, 4896, 2448, 120.0),
+	Mode::new(0, 2448, 1224, 90.0, 0.0),
+	Mode::new(1, 2448, 1224, 120.0, 0.0),
+	Mode::new(2, 3264, 1632, 90.0, 0.00297),
+	Mode::new(3, 3672, 1836, 90.0, 0.00332),
+	Mode::new(4, 4896, 2448, 90.0, 0.0),
+	Mode::new(5, 4896, 2448, 120.0, 0.0),
 ];
 
 pub struct ViveDevice(HidDevice);
@@ -240,12 +248,12 @@ impl ViveDevice {
 			.map_err(|_| Error::ProtocolError("devsn is not a string"))?
 			.to_string())
 	}
-	pub fn read_ipd(&self) -> Result<String> {
-		self.write(0x02, b"mfg-r-ipdadc")?;
+	pub fn read_reg(&self, reg: &str) -> Result<String> {
+		self.write(0x02, reg.as_bytes())?;
 		let mut out = [0u8; 62];
 		let size = self.read(0x02, &[], &mut out)?;
 		Ok(std::str::from_utf8(&out[..size])
-			.map_err(|_| Error::ProtocolError("ipd is not a string"))?
+			.map_err(|_| Error::ProtocolError("result is not a string"))?
 			.to_string())
 	}
 	pub fn read_config(&self) -> Result<ViveConfig> {
@@ -283,7 +291,7 @@ impl ViveDevice {
 		let string = std::str::from_utf8(&out[128..])
 			.map_err(|_| Error::ProtocolError("config is not utf-8"))?;
 
-		serde_json::from_str(&string).map_err(|_| Error::ConfigReadFailed)
+		serde_json::from_str(string).map_err(|_| Error::ConfigReadFailed)
 	}
 	/// Always returns at least one mode
 	pub fn query_modes(&self) -> Vec<Mode> {
@@ -292,6 +300,7 @@ impl ViveDevice {
 	pub fn set_mode(&self, resolution: u8) -> Result<(), Error> {
 		self.write_feature(0x04, 0x2970, b"wireless,0")?;
 		self.write_feature(0x04, 0x2970, format!("dtd,{}", resolution).as_bytes())?;
+		self.write_feature(0x04, 0x2970, b"chipreset")?;
 		// TODO: wait for reconnection
 		Ok(())
 	}
@@ -327,4 +336,12 @@ impl ViveDevice {
 		}
 		Ok(())
 	}
+}
+
+#[test]
+fn test() -> Result<()> {
+	let dev = ViveDevice::open_first()?;
+	dbg!(dev.read_config()?);
+	dev.set_mode(1)?;
+	Ok(())
 }
