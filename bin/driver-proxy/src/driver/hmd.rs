@@ -63,7 +63,7 @@ impl IVRDisplayComponent for HmdDisplay {
 	fn GetRecommendedRenderTargetSize(&self, pnWidth: *mut u32, pnHeight: *mut u32) {
 		let Mode { width, height, .. } = self.mode;
 		unsafe {
-			*pnWidth = width;
+			*pnWidth = width / 2;
 			*pnHeight = height;
 		}
 	}
