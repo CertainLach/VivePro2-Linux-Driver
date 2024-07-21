@@ -11,7 +11,7 @@ Signed-off-by: Yaroslav Bolyukin <iam@lach.pw>
 ---
  drivers/gpu/drm/drm_edid.c  | 42 ++++++++++++++++++++++++-------------
  include/drm/drm_connector.h |  5 +++++
- include/drm/drm_displayid.h |  4 ++++
+ drivers/gpu/drm/drm_displayid_internal.h |  4 ++++
  3 files changed, 37 insertions(+), 14 deletions(-)
 
 diff --git a/drivers/gpu/drm/drm_edid.c b/drivers/gpu/drm/drm_edid.c
@@ -102,10 +102,10 @@ index 9037f1317aee..c1ca26142975 100644
  };
  
  int drm_display_info_set_bus_formats(struct drm_display_info *info,
-diff --git a/include/drm/drm_displayid.h b/include/drm/drm_displayid.h
+diff --git a/drivers/gpu/drm/drm_displayid_internal.h b/drivers/gpu/drm/drm_displayid_internal.h
 index 49649eb8447e..ada2f8e7681c 100644
---- a/include/drm/drm_displayid.h
-+++ b/include/drm/drm_displayid.h
+--- a/drivers/gpu/drm/drm_displayid_internal.h
++++ b/drivers/gpu/drm/drm_displayid_internal.h
 @@ -131,12 +131,16 @@ struct displayid_detailed_timing_block {
  
  #define DISPLAYID_VESA_MSO_OVERLAP	GENMASK(3, 0)
