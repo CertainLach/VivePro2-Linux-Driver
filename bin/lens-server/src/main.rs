@@ -147,7 +147,11 @@ fn main() -> Result<()> {
 
 	let mut server = Server::listen();
 
+        info!("Loading library...");
+
 	let library = unsafe { LensLibrary::new(dll_path, (2448, 2448))? };
+
+        info!("Listening for requests...");
 
 	loop {
 		let req = server.recv().context("failed to read request")?;
