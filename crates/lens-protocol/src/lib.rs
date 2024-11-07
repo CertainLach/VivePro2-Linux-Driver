@@ -18,6 +18,8 @@ pub enum Error {
 	MissingPipe,
 	#[error("failed to ping server")]
 	PingFailed,
+        #[error("Invalid size of message (is the pipeline really speaking lens?): {0}")]
+        InvalidMessageSize(u32),
 }
 type Result<T, E = Error> = result::Result<T, E>;
 
@@ -204,6 +206,9 @@ pub fn read_message(read: &mut impl Read) -> Result<Vec<u8>> {
 	let mut len_buf = [0; 4];
 	read.read_exact(&mut len_buf)?;
 	let len = u32::from_be_bytes(len_buf);
+        if len < 0 || len > 0xFFFFFF {
+            return Err(Error::InvalidMessageSize(len));
+        }
 	// This protocol isn't talkative, its ok to allocate here.
 	let mut data = vec![0; len as usize];
 	read.read_exact(&mut data)?;
