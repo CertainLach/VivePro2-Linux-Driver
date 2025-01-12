@@ -3,7 +3,7 @@ use std::{
 	ffi::{OsStr, OsString},
 	io,
 	path::{Path, PathBuf},
-	process::{Command, Stdio},
+	process::{Command, ExitStatus, Stdio},
 	result,
 };
 
@@ -23,6 +23,8 @@ pub enum Error {
 	ServerExeNotFound(PathBuf),
 	#[error("can't find wine in PATH")]
 	WineNotFound,
+	#[error("proton failed with code {0} while creating prefix")]
+	CantCreateProtonPrefix(ExitStatus),
 }
 
 type Result<T> = result::Result<T, Error>;
@@ -75,6 +77,16 @@ pub fn start_lens_server(config: Value) -> Result<ServerClient> {
 					path.push(name);
 					path.push("proton");
 					info!("trying {} as proton", path.display());
+
+					if let Some(steamvr_compat_path) = env::var_os("STEAM_COMPAT_DATA_PATH") {
+						let mut proton_prefix_path = PathBuf::from(steamvr_compat_path);
+						proton_prefix_path.push("pfx");
+
+						ensure_proton_prefix_created(&path, &proton_prefix_path)?
+					} else {
+						warn!("missing proton prefix environment variable");
+					}
+
 					let res = start_lens_server_with(path, true, &server, config.clone());
 					match res {
 						Err(Error::Io(io)) if io.kind() == io::ErrorKind::NotFound => {
@@ -151,4 +163,20 @@ pub fn find_server() -> Option<PathBuf> {
 	path.push("lens-server");
 	path.push("lens-server.exe");
 	Some(path)
+}
+
+fn ensure_proton_prefix_created(proton_path: &Path, prefix_path: &Path) -> Result<()> {
+	if !prefix_path.exists() {
+		info!("initializing proton prefix directory");
+
+		if let Ok(status) = Command::new(proton_path).arg("run").spawn()?.wait() {
+			if status.success() {
+				info!("prefix created successfully")
+			} else {
+				return Err(Error::CantCreateProtonPrefix(status));
+			}
+		};
+	}
+
+	Ok(())
 }
