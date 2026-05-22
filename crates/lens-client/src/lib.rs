@@ -65,6 +65,10 @@ pub fn start_lens_server(config: Value) -> Result<ServerClient> {
 						if !name.starts_with("Proton ") {
 							continue;
 						}
+						// Do not confuse anti-cheat runtimes with Proton
+						if name.contains("Runtime") {
+							continue;
+						}
 						candidates.push((name.to_owned(), file_name))
 					}
 					// Try to find latest version by semverish comparison
