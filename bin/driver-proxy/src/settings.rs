@@ -53,7 +53,7 @@ const STRING_SIZE: usize = 65535;
 impl Setting<String> {
 	#[instrument]
 	pub fn get(&self) -> String {
-		let err: Result<()> = try {
+		let err = || -> Result<String> {
 			let mut err = EVRSettingsError::VRSettingsError_None;
 			let mut buf = vec![0u8; STRING_SIZE];
 			SETTINGS.GetString(
@@ -68,30 +68,37 @@ impl Setting<String> {
 				buf.truncate(buf.iter().position(|&c| c == 0).unwrap_or(buf.len()));
 
 				return String::from_utf8(buf)
-					.map_err(|_| Error::Internal("setting value is not utf-8"))?;
+					.map_err(|_| Error::Internal("setting value is not utf-8"));
 			};
-			Err(Error::Internal("failed to get string"))?;
+			Err(Error::Internal("failed to get string"))
 		};
-		error!("failed: {}", err.err().unwrap());
-		"".to_owned()
+		match err() {
+			Ok(v) => v,
+			Err(err) => {
+				error!("failed: {}", err);
+				"".to_owned()
+			}
+		}
 	}
 	#[instrument]
 	pub fn set(&self, value: String) {
-		let err: Result<()> = try {
+		let err = || -> Result<()> {
 			let cstring =
 				CString::new(value).map_err(|_| Error::Internal("setting value contains \\0"))?;
 			let mut err = EVRSettingsError::VRSettingsError_None;
 			SETTINGS.SetString(self.0, self.1, cstring.as_ptr(), &mut err);
-			return;
+			Ok(())
 		};
-		error!("failed: {}", err.err().unwrap());
+		if let Err(err) = err() {
+			error!("failed: {}", err);
+		}
 	}
 }
 
 #[macro_export]
 macro_rules! setting {
 	($section:expr, $name:expr) => {
-		crate::settings::Setting::unsafe_new(
+		$crate::settings::Setting::unsafe_new(
 			::real_c_string::real_c_string!($section),
 			::real_c_string::real_c_string!($name),
 		)

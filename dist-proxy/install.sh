@@ -43,7 +43,10 @@ sewer -v --backup "$LIGHTHOUSE_DRIVER/driver_lighthouse_real.so.bak" "$LIGHTHOUS
 echo "= Overriding current driver"
 rsync -a "$SCRIPTPATH/driver_lighthouse.so" "$LIGHTHOUSE_DRIVER/driver_lighthouse.so"
 
-echo "= Updating proxy server"
-rsync -ar "$SCRIPTPATH/lens-server/" "$LIGHTHOUSE_DRIVER/lens-server"
+echo "= Removing outdated proxy server"
+rm -rf "$LIGHTHOUSE_DRIVER/lens-server"
+
+echo "= Updating distort libraries"
+rsync -ar "$SCRIPTPATH/lens-distort/" "$LIGHTHOUSE_DRIVER/lens-distort"
 
 echo "Installation finished, try to start SteamVR"

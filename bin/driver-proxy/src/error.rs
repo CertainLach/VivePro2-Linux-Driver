@@ -7,9 +7,7 @@ pub enum Error {
 	#[error("openvr error: {0:?}")]
 	VR(EVRInitError),
 	#[error("lens error: {0}")]
-	Lens(#[from] lens_protocol::Error),
-	#[error("lens client error: {0}")]
-	LensClient(#[from] lens_client::Error),
+	Lens(#[from] lens_distortion::Error),
 	#[error("libloading: {0}")]
 	LibLoading(#[from] libloading::Error),
 	#[error("hid error: {0}")]
