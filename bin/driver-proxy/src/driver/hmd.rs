@@ -5,16 +5,12 @@ use std::{
 };
 
 use crate::{
-	driver_context::{self, DRIVER_CONTEXT},
 	settings::{set_properties, Property, PropertyValue, PROPERTIES},
 	Result,
 };
 use cppvtbl::{impl_vtables, HasVtable, VtableRef, WithVtables};
-use lens_protocol::{Eye, LensClient};
-use openvr::{
-	k_unFloatPropertyTag, EPropertyWriteType, ETrackedDeviceProperty, ETrackedPropertyError,
-	HmdVector2_t, IVRProperties, PropertyWrite_t,
-};
+use lens_distortion::{Eye, LensClient};
+use openvr::{ETrackedDeviceProperty, HmdVector2_t, IVRProperties};
 use tracing::{error, info, instrument};
 use vive_hid::{Mode, ViveConfig, ViveDevice};
 
@@ -105,7 +101,7 @@ impl IVRDisplayComponent for HmdDisplay {
 		pfTop: *mut f32,
 		pfBottom: *mut f32,
 	) {
-		let err: Result<()> = try {
+		let err = || -> Result<()> {
 			let result = self.lens.project(map_eye(eEye))?;
 			unsafe {
 				*pfLeft = result.left;
@@ -118,28 +114,35 @@ impl IVRDisplayComponent for HmdDisplay {
 					*pfBottom = result.bottom;
 				}
 			}
-			return;
+			Ok(())
 		};
-		error!("failed: {}", err.err().unwrap());
-		self.real
-			.GetProjectionRaw(eEye, pfLeft, pfRight, pfTop, pfBottom)
+		if let Err(err) = err() {
+			error!("failed: {}", err);
+			self.real
+				.GetProjectionRaw(eEye, pfLeft, pfRight, pfTop, pfBottom)
+		}
 	}
 
 	#[instrument(skip(self))]
 	fn ComputeDistortion(&self, eEye: EVREye, fU: f32, fV: f32) -> DistortionCoordinates_t {
-		let err: Result<()> = try {
+		let err = || -> Result<DistortionCoordinates_t> {
 			let inverse = self.lens.matrix_needs_inversion()?;
 			let result = self
 				.lens
 				.distort(map_eye(eEye), [fU, if inverse { 1.0 - fV } else { fV }])?;
-			return DistortionCoordinates_t {
+			Ok(DistortionCoordinates_t {
 				rfRed: result.red,
 				rfGreen: result.green,
 				rfBlue: result.blue,
-			};
+			})
 		};
-		error!("failed: {}", err.err().unwrap());
-		self.real.ComputeDistortion(eEye, fU, fV)
+		match err() {
+			Ok(v) => v,
+			Err(err) => {
+				error!("failed: {}", err);
+				self.real.ComputeDistortion(eEye, fU, fV)
+			}
+		}
 	}
 
 	fn ComputeInverseDistortion(

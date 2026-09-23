@@ -1,16 +1,18 @@
 [package]
-name = "lens-client"
+name = "lens-distortion"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-lens-protocol = { path = "../lens-protocol" }
 process_path = "0.1.4"
 thiserror = "1.0.50"
 tracing = "0.1.40"
 serde_json = "1.0.108"
 
+champagne = { git = "https://github.com/CertainLach/champagne" }
+
 [dev-dependencies]
+test-log = { version = "0.2.21", features = ["trace"] }
 tracing-subscriber = "0.3.17"
