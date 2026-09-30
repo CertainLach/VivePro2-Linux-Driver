@@ -1,5 +1,3 @@
-#![feature(try_blocks)]
-
 use btleplug::platform::Adapter;
 use btleplug::{
 	api::{Central, Manager as _, Peripheral, ScanFilter, WriteType},
@@ -127,7 +125,7 @@ impl StationControl {
 
 				'rescan: loop {
 					let adapter = &man_adapter.1;
-					let res: Result<()> = try {
+					let mut res= async || -> Result<bool> {
 						let peripherals = adapter.peripherals().await?;
 
 						for peripheral in peripherals {
@@ -177,7 +175,7 @@ impl StationControl {
 									notification = notifications.next() => {
 										let Some(notification) = notification else {
 											warn!("device was disconnected");
-											continue 'rescan;
+											return Ok(true);
 										};
 										if notification.uuid == *MODE_CHARACTERISTIC_ID {
 											let state = if notification.value.len() == 1 {
@@ -197,7 +195,7 @@ impl StationControl {
 											if let Err(e) = peripheral.disconnect().await {
 												error!("failed to disconnect: {e}");
 											}
-											break 'rescan;
+											return Ok(false);
 										};
 										match command {
 											StationCommand::SetState(state) => {
@@ -211,11 +209,16 @@ impl StationControl {
 								}
 							}
 						}
+						Ok(true)
 					};
-					if let Err(e) = res {
+					match res().await {
+						Ok(true) => continue 'rescan,	
+						Ok(false) => break 'rescan,	
+						Err(e) => {
 						warn!("communication failed: {e}");
-					}
 					sleep(Duration::from_secs(5)).await;
+						}
+					}
 				}
 			}
 			.in_current_span(),

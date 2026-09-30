@@ -1,6 +1,5 @@
 use cppvtbl::{impl_vtables, HasVtable, VtableRef, WithVtables};
-use lens_client::start_lens_server;
-use lens_protocol::{LensClient, StubClient};
+use lens_distortion::{LensClient, LensLibrary, StubClient};
 use once_cell::sync::Lazy;
 use std::env::var_os;
 use std::ffi::{CStr, OsString};
@@ -42,7 +41,7 @@ impl IVRServerDriverHost for DriverHost {
 			.to_string();
 		info!("added tracked device: {sn:?} ({eDeviceClass:?})");
 		if eDeviceClass == ETrackedDeviceClass::TrackedDeviceClass_HMD {
-			let err: Result<()> = try {
+			let err = || -> Result<bool> {
 				// Steam part is opened for checking if this is really a needed HMD device
 				let _steam = Rc::new(SteamDevice::open(&sn)?);
 				// We don't know for sure this device serial
@@ -79,12 +78,16 @@ impl IVRServerDriverHost for DriverHost {
 
 				let vive_config = vive.read_config()?;
 
-				let lens = start_lens_server(vive_config.inhouse_lens_correction.clone())
+				let lens = LensLibrary::new()
+					.and_then(|e| {
+						e.set_config(vive_config.inhouse_lens_correction.clone())?;
+						Ok(e)
+					})
 					.map(|v| Rc::new(v) as Rc<dyn LensClient>)
 					.unwrap_or_else(|e| {
 						let zenity = var_os("STEAM_ZENITY").unwrap_or_else(|| OsString::from("zenity"));
 						let mut cmd = Command::new(zenity);
-						cmd.arg("--no-wrap").arg("--error").arg("--text").arg(format!("Lens distortion helper is failed to launch, HMD image most probaly will be distorted and unusable.\nError: {e}\n\nMake sure you have any recent version of proton installed."));
+						cmd.arg("--no-wrap").arg("--error").arg("--text").arg(format!("Lens distortion library is failed to load, HMD image most probaly will be distorted and unusable.\nError: {e}"));
 						match cmd.spawn().and_then(|p| p.wait_with_output()) {
 							Ok(v) => {
 								info!("zenity finished: {}\n{:?}\n{:?}", v.status, v.stdout, v.stderr)
@@ -107,13 +110,18 @@ impl IVRServerDriverHost for DriverHost {
 					mode,
 				})));
 
-				return self.real.TrackedDeviceAdded(
+				Ok(self.real.TrackedDeviceAdded(
 					pchDeviceSerialNumber,
 					eDeviceClass,
 					HasVtable::<ITrackedDeviceServerDriverVtable>::get(hmd),
-				);
+				))
 			};
-			error!("failed to wrap hmd: {}", err.err().unwrap());
+			match err() {
+				Ok(v) => return v,
+				Err(err) => {
+					error!("failed to wrap hmd: {}", err);
+				}
+			}
 		}
 		self.real
 			.TrackedDeviceAdded(pchDeviceSerialNumber, eDeviceClass, pDriver)

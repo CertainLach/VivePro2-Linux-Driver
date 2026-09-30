@@ -16,8 +16,7 @@ real_c_string = "1.0.1"
 
 valve-pm = { path = "../../crates/valve-pm" }
 vive-hid = { path = "../../crates/vive-hid" }
-lens-client = { path = "../../crates/lens-client" }
-lens-protocol = { path = "../../crates/lens-protocol" }
+lens-distortion = { path = "../../crates/lens-distortion" }
 openvr = { path = "../../crates/openvr" }
 tokio = { version = "1.34.0", features = ["rt", "rt-multi-thread"] }
 
