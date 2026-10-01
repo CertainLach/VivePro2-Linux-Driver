@@ -25,6 +25,20 @@
           ];
         };
         rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+        sewer =
+          with pkgs.pkgsStatic;
+          rustPlatform.buildRustPackage {
+            pname = "sewer";
+            version = "0.1.0";
+            src = fetchFromGitHub {
+              owner = "CertainLach";
+              repo = "sewer";
+              rev = "fb0d054e53e2afd4c64232318495e5351b446330";
+              hash = "sha256-2S2JXKLbRQsrQmt25djj/x284NXqPSGJjybDe9Uw7ZM=";
+            };
+            cargoHash = "sha256-D76DjJW77RY1vsi5QAjm5LGmS8rzYZefMDWm90qaa28=";
+            doCheck = false;
+          };
       in
       rec {
         kernelPatches = [
@@ -55,8 +69,8 @@
             cargoLock = {
               lockFile = ./Cargo.lock;
               outputHashes = {
-                "champagne-0.1.1" = "sha256-/IJVecFqElq/uwmBoWDL3FRy+26lN/k29FiML7IyK7E=";
-                "pelite-0.10.0" = "sha256-NoTSZrBZBqM8/gNSsCxQo++uoZQptQdSntbZSuhNm98=";
+                "pelite-0.10.0" = "sha256-Pzm8OKWuU8/9xEMvVsVARCrJ2qljHwECB410HoUb3MA=";
+                "champagne-0.1.1" = "sha256-8TTt3eYE7ikCQNoB3fRQh3ZGICsd4tolkFPJa9Oweh8=";
               };
             };
           in
@@ -73,21 +87,6 @@
                 ];
               };
 
-            sewer =
-              with pkgs.pkgsStatic;
-              rustPlatform.buildRustPackage {
-                pname = "sewer";
-                version = "0.1.0";
-                src = fetchFromGitHub {
-                  owner = "CertainLach";
-                  repo = "sewer";
-                  rev = "fb0d054e53e2afd4c64232318495e5351b446330";
-                  hash = "sha256-2S2JXKLbRQsrQmt25djj/x284NXqPSGJjybDe9Uw7ZM=";
-                };
-                cargoHash = "sha256-D76DjJW77RY1vsi5QAjm5LGmS8rzYZefMDWm90qaa28=";
-                doCheck = false;
-              };
-
             driver-vivevr-release =
               with pkgs;
               stdenv.mkDerivation {
@@ -98,7 +97,7 @@
                   chmod u+w -R $out
                   cp ${packages.driver-vivevr}/lib/libdriver_vivevr.so $out/bin/linux64/driver_viveVR.so
                   mkdir $out/tools
-                  cp ${packages.sewer}/bin/sewer $out/tools/
+                  cp ${sewer}/bin/sewer $out/tools/
                 '';
                 patchPhase = "true";
                 fixupPhase = "true";
@@ -126,6 +125,7 @@
               lld
               dbus.dev
               udev
+              sewer
             ];
             LD_LIBRARY_PATH = "${pkgs.dbus.lib}/lib";
           };

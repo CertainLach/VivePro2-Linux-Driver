@@ -1,13 +1,15 @@
 use std::{
-	env::{self, vars_os},
-	ffi::{OsStr, OsString},
-	io,
-	path::{Path, PathBuf},
-	process::{Command, ExitStatus, Stdio},
+	env,
+	path::PathBuf,
 	result,
+	sync::{LazyLock, OnceLock},
 };
 
-use champagne::{override_import, FinishedPeImage, PeImage, VirtualPeb, VirtualTib};
+use champagne::{
+	override_import,
+	unix::{HostThread, VirtualPeb},
+	FinishedPeImage, PeImage,
+};
 use serde_json::Value;
 use tracing::info_span;
 
@@ -17,6 +19,8 @@ pub enum Error {
 	Champagne(#[from] champagne::Error),
 	#[error("fatal: {0}")]
 	Fatal(&'static str),
+	#[error("lens library failed to load: {0}")]
+	Load(String),
 }
 type Result<T, E = Error> = result::Result<T, E>;
 
@@ -57,10 +61,7 @@ pub trait LensClient {
 	fn set_config(&self, config: Value) -> Result<()>;
 }
 
-pub struct LensLibrary {
-	peb: VirtualPeb,
-	m: LensLibraryMethods,
-}
+pub struct LensLibrary(&'static LensLibraryMethods);
 struct LensLibraryMethods {
 	init: unsafe extern "win64" fn() -> u32,
 	set_resolution: unsafe extern "win64" fn(width: u32, height: u32) -> u32,
@@ -74,7 +75,7 @@ struct LensLibraryMethods {
 		c2: *mut f32,
 	) -> u32,
 	grow_for_undistort: unsafe extern "win64" fn(eye: u32, out: *mut [f32; 4]) -> u32,
-	intrinsic: unsafe extern "win64" fn(eye: u32, out: *mut [f32; 8]) -> u32,
+	intrinsic: unsafe extern "win64" fn(eye: u32, out: *mut [f32; 9]) -> u32,
 }
 impl LensLibraryMethods {
 	fn new(m: FinishedPeImage) -> Result<Self> {
@@ -112,8 +113,8 @@ impl LensLibraryMethods {
 		ensure!(unsafe { (self.grow_for_undistort)(eye as u32, &mut out) } == 0);
 		Ok(out)
 	}
-	fn intrinsic(&self, eye: Eye) -> Result<[f32; 8]> {
-		let mut out = [0.0; 8];
+	fn intrinsic(&self, eye: Eye) -> Result<[f32; 9]> {
+		let mut out = [0.0; 9];
 		ensure!(unsafe { (self.intrinsic)(eye as u32, &mut out) } == 0);
 		Ok(out)
 	}
@@ -124,82 +125,95 @@ impl LensLibraryMethods {
 		Ok([a, b])
 	}
 }
+static PEB: LazyLock<VirtualPeb> = LazyLock::new(VirtualPeb::new);
+static LIBRARY: OnceLock<Result<LensLibraryMethods, String>> = OnceLock::new();
+
+thread_local! {
+	static GUEST_THREAD: HostThread<'static> = HostThread::attach(&PEB);
+}
+
+fn in_guest<T>(f: impl FnOnce() -> T) -> T {
+	GUEST_THREAD.with(|thread| {
+		let _entered = thread.enter();
+		f()
+	})
+}
+
+fn load_library() -> Result<LensLibraryMethods> {
+	let libs = find_libs()
+		.unwrap_or_default()
+		.to_str()
+		.unwrap_or_default()
+		.to_owned();
+
+	for lib in ["ucrtbase.dll", "vcruntime140.dll", "msvcp140.dll"] {
+		let _span = info_span!("lib", lib = lib).entered();
+		let mut m = PeImage::open(dbg!(format!("{libs}/{lib}")))?;
+		m.resolve_imports(override_import, &*PEB)?;
+		let m = m.finish()?;
+		unsafe {
+			m.init_static_tls()?;
+
+			m.init_exceptions()?;
+			m.call_ep_if_exists()?;
+		}
+	}
+	{
+		let _span = info_span!("opencv_world").entered();
+		let mut m = PeImage::open(format!("{libs}/opencv_world346.dll"))?;
+		m.resolve_imports(override_import, &*PEB)?;
+		let m = m.finish()?;
+		unsafe {
+			m.init_static_tls()?;
+
+			m.init_exceptions()?;
+			m.call_ep_if_exists()?;
+		}
+	}
+	let m = {
+		let _span = info_span!("libdistort").entered();
+		let mut m = PeImage::open(format!("{libs}/LibLensDistortion.dll"))?;
+		m.resolve_imports(override_import, &*PEB)?;
+		let m = m.finish()?;
+		unsafe {
+			m.init_static_tls()?;
+
+			m.init_exceptions()?;
+			m.call_ep_if_exists()?;
+		}
+
+		// unsafe { exercise_lens(&m)? };
+		m
+	};
+
+	let m = LensLibraryMethods::new(m)?;
+	m.init()?;
+	m.set_resolution(2448, 2448)?;
+	Ok(m)
+}
+
 impl LensLibrary {
 	pub fn new() -> Result<Self> {
-		let peb = VirtualPeb::new();
-		let libs = find_libs()
-			.unwrap_or_default()
-			.to_str()
-			.unwrap_or_default()
-			.to_owned();
-
-		let tib = VirtualTib::new(&peb);
-		for lib in ["ucrtbase.dll", "vcruntime140.dll", "msvcp140.dll"] {
-			let _ent_tib = tib.enter();
-			let _span = info_span!("lib", lib = lib).entered();
-			let mut m = PeImage::open(dbg!(format!("{libs}/{lib}")))?;
-			m.resolve_imports(override_import, &peb)?;
-			let m = m.finish()?;
-			unsafe {
-				m.init_static_tls()?;
-
-				m.init_exceptions()?;
-				m.call_ep_if_exists()?;
-			}
+		match LIBRARY.get_or_init(|| in_guest(load_library).map_err(|e| e.to_string())) {
+			Ok(m) => Ok(Self(m)),
+			Err(e) => Err(Error::Load(e.clone())),
 		}
-		{
-			let _ent_tib = tib.enter();
-			let _span = info_span!("opencv_world").entered();
-			let mut m = PeImage::open(format!("{libs}/opencv_world346.dll"))?;
-			m.resolve_imports(override_import, &peb)?;
-			let m = m.finish()?;
-			unsafe {
-				m.init_static_tls()?;
-
-				m.init_exceptions()?;
-				m.call_ep_if_exists()?;
-			}
-		}
-		let m = {
-			let _ent_tib = tib.enter();
-			let _span = info_span!("libdistort").entered();
-			let mut m = PeImage::open(format!("{libs}/LibLensDistortion.dll"))?;
-			m.resolve_imports(override_import, &peb)?;
-			let m = m.finish()?;
-			unsafe {
-				m.init_static_tls()?;
-
-				m.init_exceptions()?;
-				m.call_ep_if_exists()?;
-			}
-
-			let _ent_tib = tib.enter();
-			// unsafe { exercise_lens(&m)? };
-			m
-		};
-
-		let m = LensLibraryMethods::new(m)?;
-
-		let out = Self { peb, m };
-
-		out.m.init()?;
-		out.m.set_resolution(2448, 2448)?;
-
-		Ok(out)
 	}
 }
 impl LensClient for LensLibrary {
 	fn project(&self, eye: Eye) -> Result<LeftRightTopBottom> {
-		let mut g = self.m.grow_for_undistort(eye)?;
-		for v in g.iter_mut() {
-			*v += 1.0;
-		}
-		let i = self.m.intrinsic(eye)?;
-		Ok(LeftRightTopBottom {
-			left: (-1.0 - i[2]) * g[0] / i[0],
-			right: (1.0 - i[2]) * g[1] / i[0],
-			top: (1.0 - i[4 + 1]) * g[2] / i[4],
-			bottom: (-1.0 - i[4 + 1]) * g[3] / i[4],
+		in_guest(|| {
+			let mut g = self.0.grow_for_undistort(eye)?;
+			for v in g.iter_mut() {
+				*v += 1.0;
+			}
+			let i = self.0.intrinsic(eye)?;
+			Ok(LeftRightTopBottom {
+				left: (-1.0 - i[2]) * g[0] / i[0],
+				right: (1.0 - i[2]) * g[1] / i[0],
+				top: (1.0 - i[4 + 1]) * g[2] / i[4],
+				bottom: (-1.0 - i[4 + 1]) * g[3] / i[4],
+			})
 		})
 	}
 
@@ -209,18 +223,19 @@ impl LensClient for LensLibrary {
 	}
 
 	fn distort(&self, eye: Eye, uv: [f32; 2]) -> Result<DistortOutput> {
-		Ok(DistortOutput {
-			red: self.m.distort_uv(eye, 2, uv)?,
-			green: self.m.distort_uv(eye, 1, uv)?,
-			blue: self.m.distort_uv(eye, 0, uv)?,
+		in_guest(|| {
+			Ok(DistortOutput {
+				red: self.0.distort_uv(eye, 2, uv)?,
+				green: self.0.distort_uv(eye, 1, uv)?,
+				blue: self.0.distort_uv(eye, 0, uv)?,
+			})
 		})
 	}
 
 	fn set_config(&self, config: Value) -> Result<()> {
 		let config_str =
 			serde_json::to_string(&config).expect("serialization of values should not fail");
-		self.m.load_json_str(&config_str)?;
-		Ok(())
+		in_guest(|| self.0.load_json_str(&config_str))
 	}
 }
 
