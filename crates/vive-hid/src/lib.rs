@@ -1,11 +1,15 @@
-use std::{io::Read, result};
+use std::{
+	io::Read,
+	result,
+	time::{Duration, Instant},
+};
 
 use flate2::read::ZlibDecoder;
 use hidapi::{HidApi, HidDevice, HidError};
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
 use serde_json::Value;
-use tracing::error;
+use tracing::{error, warn};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -21,6 +25,8 @@ pub enum Error {
 	ConfigReadFailed,
 	#[error("protocol error: {0}")]
 	ProtocolError(&'static str),
+	#[error("timed out waiting for hid response")]
+	Timeout,
 }
 
 type Result<T, E = Error> = result::Result<T, E>;
@@ -174,6 +180,24 @@ impl Mode {
 	}
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct HmdStatus {
+	pub proximity: u16,
+	pub ipd: u16,
+	pub system: bool,
+	pub volume_up: bool,
+	pub volume_down: bool,
+	pub mute_mic: bool,
+}
+impl HmdStatus {
+	pub fn ipd_meters(&self) -> f32 {
+		self.ipd as f32 * 0.00001
+	}
+	pub fn worn(&self) -> bool {
+		self.proximity > 150
+	}
+}
+
 const VIVE_PRO_2_MODES: [Mode; 6] = [
 	Mode::new(0, 2448, 1224, 90.0, 0.0),
 	Mode::new(1, 2448, 1224, 120.0, 0.0),
@@ -221,7 +245,18 @@ impl ViveDevice {
 	}
 	fn read(&self, id: u8, strip_prefix: &[u8], out: &mut [u8]) -> Result<usize> {
 		let mut data = [0u8; 64];
-		self.0.read(&mut data)?;
+		let deadline = Instant::now() + Duration::from_secs(2);
+		loop {
+			let timeout = deadline
+				.saturating_duration_since(Instant::now())
+				.as_millis() as i32;
+			if self.0.read_timeout(&mut data, timeout)? == 0 {
+				return Err(Error::Timeout);
+			}
+			if data[0] != 0x03 {
+				break;
+			}
+		}
 		if data[0] != id {
 			error!("expected {id} but got {}\n{:02x?}", data[0], data);
 			return Err(Error::ProtocolError("wrong report id"));
@@ -240,18 +275,42 @@ impl ViveDevice {
 		out[..size].copy_from_slice(&data[strip_prefix.len() + 2..strip_prefix.len() + 2 + size]);
 		Ok(size)
 	}
+	fn drain(&self) -> Result<()> {
+		let mut data = [0u8; 64];
+		while self.0.read_timeout(&mut data, 0)? != 0 {}
+		Ok(())
+	}
+	fn request(
+		&self,
+		id: u8,
+		request: &[u8],
+		strip_prefix: &[u8],
+		out: &mut [u8],
+	) -> Result<usize> {
+		let mut attempt = 1;
+		let attempts = 10;
+		loop {
+			self.write(id, request)?;
+			match self.read(id, strip_prefix, out) {
+				Err(Error::Timeout) if attempt < attempts => {
+					warn!("hid request timed out, retrying ({attempt}/{attempts})");
+					self.drain()?;
+					attempt += 1;
+				}
+				res => return res,
+			}
+		}
+	}
 	pub fn read_devsn(&self) -> Result<String> {
-		self.write(0x02, b"mfg-r-devsn")?;
 		let mut out = [0u8; 62];
-		let size = self.read(0x02, &[], &mut out)?;
+		let size = self.request(0x02, b"mfg-r-devsn", &[], &mut out)?;
 		Ok(std::str::from_utf8(&out[..size])
 			.map_err(|_| Error::ProtocolError("devsn is not a string"))?
 			.to_string())
 	}
 	pub fn read_reg(&self, reg: &str) -> Result<String> {
-		self.write(0x02, reg.as_bytes())?;
 		let mut out = [0u8; 62];
-		let size = self.read(0x02, &[], &mut out)?;
+		let size = self.request(0x02, reg.as_bytes(), &[], &mut out)?;
 		Ok(std::str::from_utf8(&out[..size])
 			.map_err(|_| Error::ProtocolError("result is not a string"))?
 			.to_string())
@@ -260,8 +319,7 @@ impl ViveDevice {
 		let mut buf = [0u8; 62];
 		// Request size
 		let total_len = {
-			self.write(0x01, &[0xea, 0xb1])?;
-			let size = self.read(0x01, &[0xea, 0xb1], &mut buf)?;
+			let size = self.request(0x01, &[0xea, 0xb1], &[0xea, 0xb1], &mut buf)?;
 			if size != 4 {
 				return Err(Error::ProtocolError("config length has 4 bytes"));
 			}
@@ -278,8 +336,10 @@ impl ViveDevice {
 			req[2] = 0x04;
 			req[3..7].copy_from_slice(&u32::to_le_bytes(read as u32));
 
-			self.write(0x01, &req)?;
-			let size = self.read(0x01, &[0xeb, 0xb1], &mut buf)?;
+			let size = self.request(0x01, &req, &[0xeb, 0xb1], &mut buf)?;
+			if size == 0 {
+				return Err(Error::ProtocolError("empty config chunk"));
+			}
 			read += size;
 			out.extend_from_slice(&buf[0..size]);
 		}
@@ -310,6 +370,27 @@ impl ViveDevice {
 			0x2970,
 			format!("setbrightness,{}", brightness.min(130)).as_bytes(),
 		)
+	}
+	pub fn set_status_polling(&self, enabled: bool) -> Result<(), Error> {
+		let mut data = [0u8; 56];
+		data[0] = 1;
+		data[8] = enabled as u8;
+		self.write_feature(0x04, 0x2978, &data)
+	}
+	pub fn read_status(&self, timeout_ms: i32) -> Result<Option<HmdStatus>> {
+		let mut data = [0u8; 64];
+		let size = self.0.read_timeout(&mut data, timeout_ms)?;
+		if size < 18 || data[0] != 0x03 || u16::from_le_bytes([data[1], data[2]]) != 0x2cd0 {
+			return Ok(None);
+		}
+		Ok(Some(HmdStatus {
+			proximity: u16::from_le_bytes([data[14], data[15]]),
+			ipd: u16::from_le_bytes([data[16], data[17]]),
+			system: data[8] != 0,
+			volume_up: data[9] & 1 != 0,
+			volume_down: data[9] & 2 != 0,
+			mute_mic: data[9] & 4 != 0,
+		}))
 	}
 	pub fn toggle_noise_canceling(&self, enabled: bool) -> Result<(), Error> {
 		const ENABLE: &[&[u8]] = &[
