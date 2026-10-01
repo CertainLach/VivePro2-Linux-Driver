@@ -6,7 +6,7 @@ Because HTC doesn't care about non-windows users, even if OG Vive worked just fi
 
 ## How
 
-Current implementation of driver intercepts some calls between SteamVR and common headset driver `driver_lighthouse`, which is used for OG Vive, and makes it work with newer Vive Pro 2
+SteamVR common headset driver `driver_lighthouse`, which is used for OG Vive, tracks Vive Pro 2, but expects `viveVR` driver to provide its display. This driver is a replacement for `viveVR`, it provides display (resolution, lens distortion) for the SteamVR compositor, and configures the headset itself
 
 ## Progress
 
@@ -39,8 +39,8 @@ Current implementation of driver intercepts some calls between SteamVR and commo
 This driver can be built using [nix package manager](https://nixos.org/download.html) (it works on any distribution), build is fully reproducible, all needed dependencies will be downloaded automatically:
 
 ```sh
-# Note: the #driver-proxy-release part of this command is not a comment, it's just github syntax highlighter is wrong
-nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#driver-proxy-release
+# Note: the #driver-vivevr-release part of this command is not a comment, it's just github syntax highlighter is wrong
+nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#driver-vivevr-release
 ```
 
 ...or using manual building instructions from here (i dont provide any guarantees about contents of this repo) https://github.com/santeri3700/vive-pro-2-on-linux#install-vive-pro-2-linux-driver-by-certainlach
@@ -53,7 +53,11 @@ And then installed via
 ./install.sh
 ```
 
-Latest version of driver [automatically patches](https://github.com/CertainLach/VivePro2-Linux-Driver/commit/70687011f80d58c78ee77868895def9d77adf262) SteamVR, so VIVE Console no longer required to be installed
+Driver is registered using SteamVR `vrpathreg`, VIVE Console is not required to be installed (installer unregisters its `viveVR` driver, if it is installed)
+
+The only modified SteamVR file is room setup `sharedassets0.assets` (backed up as `sharedassets0.assets.bak`): two of its textures declare more mip levels than their size allows, which crashes room setup with Mesa built with assertions enabled
+
+If older version of this driver (which replaced `driver_lighthouse.so`) was installed, restore SteamVR installation first: Manage => Installed Files => Verify integrity in tool files
 
 ## Configuration
 
