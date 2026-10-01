@@ -1,0 +1,8 @@
+{
+	"alwaysActivate": false,
+	"name": "viveVR",
+	"directory": "",
+	"resourceOnly": false,
+	"redirectsDisplay": true,
+	"hmd_presence": ["0BB4.0342"]
+}

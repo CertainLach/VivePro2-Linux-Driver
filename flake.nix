@@ -61,21 +61,23 @@
             };
           in
           {
-            driver-proxy =
+            driver-vivevr =
               with pkgs;
               rustPlatform.buildRustPackage {
                 inherit version src cargoLock;
-                pname = "vivepro2-driver-proxy";
+                pname = "vivepro2-driver-vivevr";
                 nativeBuildInputs = [ pkg-config ];
                 buildInputs = [
                   udev
                   dbus.dev
                 ];
               };
+
             sewer =
               with pkgs.pkgsStatic;
               rustPlatform.buildRustPackage {
-                name = "sewer";
+                pname = "sewer";
+                version = "0.1.0";
                 src = fetchFromGitHub {
                   owner = "CertainLach";
                   repo = "sewer";
@@ -83,35 +85,34 @@
                   hash = "sha256-2S2JXKLbRQsrQmt25djj/x284NXqPSGJjybDe9Uw7ZM=";
                 };
                 cargoHash = "sha256-D76DjJW77RY1vsi5QAjm5LGmS8rzYZefMDWm90qaa28=";
-                target = "x86_64-unknown-linux-musl";
                 doCheck = false;
               };
 
-            driver-proxy-release =
+            driver-vivevr-release =
               with pkgs;
               stdenv.mkDerivation {
                 inherit version src;
-                pname = "vivepro2-driver-proxy-release";
+                pname = "vivepro2-driver-vivevr-release";
                 installPhase = ''
-                  cp -r $src/dist-proxy/ $out/
+                  cp -r $src/dist/ $out/
                   chmod u+w -R $out
-                  mkdir $out/bin/
-                  cp ${packages.sewer}/bin/sewer $out/bin/
-                  cp ${packages.driver-proxy}/lib/libdriver_proxy.so $out/driver_lighthouse.so
+                  cp ${packages.driver-vivevr}/lib/libdriver_vivevr.so $out/bin/linux64/driver_viveVR.so
+                  mkdir $out/tools
+                  cp ${packages.sewer}/bin/sewer $out/tools/
                 '';
                 patchPhase = "true";
                 fixupPhase = "true";
               };
-            driver-proxy-release-tar-zstd =
+            driver-vivevr-release-tar-zstd =
               with pkgs;
               stdenv.mkDerivation {
-                inherit (packages.driver-proxy-release) version pname;
+                inherit (packages.driver-vivevr-release) version pname;
                 unpackPhase = "true";
                 patchPhase = "true";
                 fixupPhase = "true";
                 installPhase = ''
                   mkdir $out/
-                  cd ${packages.driver-proxy-release}
+                  cd ${packages.driver-vivevr-release}
                   tar -cv * | ${pkgs.zstd}/bin/zstd -9 > $out/driver.tar.zst
                 '';
               };

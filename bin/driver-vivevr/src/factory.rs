@@ -8,30 +8,13 @@ use crate::{
 	log::LogWriter, server_tracked_provider::SERVER_TRACKED_DEVICE_PROVIDER, Error, Result,
 };
 use cppvtbl::{HasVtable, VtableRef};
-use libloading::{Library, Symbol};
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::Lazy;
 use tokio::runtime::Runtime;
 use tracing::info;
 
 use crate::openvr::{
 	EVRInitError, IServerTrackedDeviceProviderVtable, IServerTrackedDeviceProvider_Version,
 };
-
-pub type HmdDriverFactory =
-	unsafe extern "C" fn(*const c_char, result: *mut EVRInitError) -> *const c_void;
-static HMD_DRIVER_FACTORY: OnceCell<Symbol<HmdDriverFactory>> = OnceCell::new();
-pub fn get_hmd_driver_factory() -> Result<&'static Symbol<'static, HmdDriverFactory>> {
-	HMD_DRIVER_FACTORY.get_or_try_init(|| {
-		let mut path =
-			process_path::get_dylib_path().ok_or(Error::Internal("process path failed"))?;
-		path.pop();
-		path.push("driver_lighthouse_real.so");
-
-		let library: &'static mut Library =
-			Box::leak(Box::new(unsafe { libloading::Library::new(&path)? }));
-		Ok(unsafe { library.get(b"HmdDriverFactory") }.expect("can't find HmdDriverFactory"))
-	})
-}
 
 pub static TOKIO_RUNTIME: Lazy<Runtime> =
 	Lazy::new(|| Runtime::new().expect("tokio init should not fail"));
@@ -58,8 +41,7 @@ fn HmdDriverFactory_impl(iface: *const c_char) -> Result<*const c_void> {
 			)) as *const _ as *const c_void,
 		)
 	} else {
-		let factory = get_hmd_driver_factory()?;
-		unsafe { try_vr!(factory(iface)) }
+		Err(Error::VR(EVRInitError::VRInitError_Init_InterfaceNotFound))
 	}
 }
 

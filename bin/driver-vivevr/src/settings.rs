@@ -5,12 +5,12 @@ use cppvtbl::VtableRef;
 use once_cell::sync::Lazy;
 use openvr::{
 	k_unBoolPropertyTag, k_unFloatPropertyTag, EPropertyWriteType, ETrackedDeviceProperty,
-	ETrackedPropertyError, IVRProperties, IVRPropertiesVtable, IVRProperties_Version,
-	PropertyWrite_t,
+	ETrackedPropertyError, IVRDriverInputVtable, IVRDriverInput_Version, IVRProperties,
+	IVRPropertiesVtable, IVRProperties_Version, PropertyWrite_t,
 };
-use tracing::{error, instrument};
+use tracing::{error, instrument, warn};
 
-use crate::driver_context::DRIVER_CONTEXT;
+use crate::driver_context::get_interface;
 use crate::openvr::{EVRSettingsError, IVRSettings, IVRSettingsVtable, IVRSettings_Version};
 use crate::{Error, Result};
 
@@ -105,15 +105,8 @@ macro_rules! setting {
 	};
 }
 
-pub static SETTINGS: Lazy<&'static VtableRef<IVRSettingsVtable>> = Lazy::new(|| {
-	let ctx = DRIVER_CONTEXT
-		.get()
-		.expect("context should be initialized at this point");
-	let raw = ctx
-		.get_generic_interface(IVRSettings_Version)
-		.expect("there should be settings interface");
-	unsafe { VtableRef::from_raw(raw as *const VtableRef<IVRSettingsVtable>) }
-});
+pub static SETTINGS: Lazy<&'static VtableRef<IVRSettingsVtable>> =
+	Lazy::new(|| get_interface(IVRSettings_Version).expect("there should be settings interface"));
 
 pub enum PropertyValue {
 	Float(f32),
@@ -165,15 +158,20 @@ pub fn set_properties(container: u64, mut props: Vec<Property>) {
 			eSetError: ETrackedPropertyError::TrackedProp_Success,
 		});
 	}
-	PROPERTIES.WritePropertyBatch(container, batch.as_mut_ptr(), batch.len() as u32);
+	let error = PROPERTIES.WritePropertyBatch(container, batch.as_mut_ptr(), batch.len() as u32);
+	if error != ETrackedPropertyError::TrackedProp_Success {
+		warn!("failed to write properties to {container}: {error:?}");
+	}
+	for write in &batch {
+		if write.eSetError != ETrackedPropertyError::TrackedProp_Success {
+			warn!("failed to set {:?}: {:?}", write.prop, write.eSetError);
+		}
+	}
 }
 
 pub static PROPERTIES: Lazy<&'static VtableRef<IVRPropertiesVtable>> = Lazy::new(|| {
-	let ctx = DRIVER_CONTEXT
-		.get()
-		.expect("context should be initialized at this point");
-	let raw = ctx
-		.get_generic_interface(IVRProperties_Version)
-		.expect("there should be properties interface");
-	unsafe { VtableRef::from_raw(raw as *const VtableRef<IVRPropertiesVtable>) }
+	get_interface(IVRProperties_Version).expect("there should be properties interface")
+});
+pub static DRIVER_INPUT: Lazy<&'static VtableRef<IVRDriverInputVtable>> = Lazy::new(|| {
+	get_interface(IVRDriverInput_Version).expect("there should be driver input interface")
 });

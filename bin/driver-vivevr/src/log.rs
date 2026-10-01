@@ -23,13 +23,14 @@ impl LogWriter {
 }
 impl Write for LogWriter {
 	fn write(&mut self, mut buf: &[u8]) -> std::io::Result<usize> {
+		let len = buf.len();
 		while let Some(pos) = buf.iter().position(|v| *v == b'\n') {
 			self.0.extend_from_slice(&buf[..pos]);
 			self.flush_line();
 			buf = &buf[pos + 1..];
 		}
 		self.0.extend_from_slice(buf);
-		Ok(buf.len())
+		Ok(len)
 	}
 
 	fn flush(&mut self) -> std::io::Result<()> {

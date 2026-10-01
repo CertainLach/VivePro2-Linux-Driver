@@ -1,24 +1,45 @@
-use std::{os::raw::c_char, sync::Mutex};
+use std::{os::raw::c_char, ptr::null, sync::Mutex};
 
 use crate::{
-	driver_context::{try_init_driver_context, DRIVER_CONTEXT},
-	factory::{get_hmd_driver_factory, TOKIO_RUNTIME},
+	driver_context::{get_interface, try_init_driver_context},
+	factory::TOKIO_RUNTIME,
+	hmd::prepare_hmd,
 	log::try_init_driver_log,
 	setting,
 	settings::Setting,
-	try_vr,
 };
-use cppvtbl::{impl_vtables, HasVtable, VtableRef, WithVtables};
+use cppvtbl::{impl_vtables, VtableRef, WithVtables};
 use once_cell::sync::Lazy;
-use openvr::{IVRDriverLogVtable, IVRDriverLog_Version};
+use openvr::IVRDriverLog_Version;
 use tokio::task::LocalSet;
-use tracing::info;
+use tracing::{error, info};
 use valve_pm::{start_manager, StationCommand, StationControl, StationState};
 
 use crate::openvr::{
 	EVRInitError, IServerTrackedDeviceProvider, IServerTrackedDeviceProviderVtable,
-	IServerTrackedDeviceProvider_Version, IVRDriverContextVtable,
+	IServerTrackedDeviceProvider_Version, ITrackedDeviceServerDriver_Version,
+	IVRCameraComponent_Version, IVRCompositorPluginProvider_Version, IVRDisplayComponent_Version,
+	IVRDriverContextVtable, IVRDriverDirectModeComponent_Version, IVRDriverManager_Version,
+	IVRResources_Version, IVRSettings_Version, IVRVirtualDisplay_Version,
+	IVRWatchdogProvider_Version,
 };
+
+struct InterfaceVersions([*const c_char; 12]);
+unsafe impl Sync for InterfaceVersions {}
+static INTERFACE_VERSIONS: InterfaceVersions = InterfaceVersions([
+	IVRSettings_Version,
+	ITrackedDeviceServerDriver_Version,
+	IVRDisplayComponent_Version,
+	IVRDriverDirectModeComponent_Version,
+	IVRCameraComponent_Version,
+	IServerTrackedDeviceProvider_Version,
+	IVRWatchdogProvider_Version,
+	IVRVirtualDisplay_Version,
+	IVRDriverManager_Version,
+	IVRResources_Version,
+	IVRCompositorPluginProvider_Version,
+	null(),
+]);
 
 // (name ":" "BS2" ":" "0"/"1") ** ","
 const BASE_STATIONS: Setting<String> = setting!("driver_lighthouse", "PowerManagedBaseStations2");
@@ -29,7 +50,6 @@ const POWER_MANAGEMENT: Setting<i32> = setting!("vivepro2", "basestationPowerMan
 
 #[impl_vtables(IServerTrackedDeviceProvider)]
 pub struct ServerTrackedProvider {
-	real: &'static VtableRef<IServerTrackedDeviceProviderVtable>,
 	stations: Mutex<Vec<StationControl>>,
 	standby_state: Mutex<StationState>,
 }
@@ -39,12 +59,9 @@ impl IServerTrackedDeviceProvider for ServerTrackedProvider {
 		pDriverContext: *const cppvtbl::VtableRef<IVRDriverContextVtable>,
 	) -> EVRInitError {
 		try_init_driver_context(unsafe { &*pDriverContext });
-		let context = DRIVER_CONTEXT.get().expect("context just initialized");
-		let logger: *const cppvtbl::VtableRef<IVRDriverLogVtable> = context
-			.get_generic_interface(IVRDriverLog_Version)
-			.expect("always able to initialize driver log")
-			.cast();
-		try_init_driver_log(unsafe { &*logger });
+		try_init_driver_log(
+			get_interface(IVRDriverLog_Version).expect("always able to initialize driver log"),
+		);
 
 		let power_management = POWER_MANAGEMENT.get();
 		*self.standby_state.lock().expect("lock") = match power_management {
@@ -88,13 +105,13 @@ impl IServerTrackedDeviceProvider for ServerTrackedProvider {
 			}
 		};
 
-		self.real.Init(
-			VtableRef::into_raw(HasVtable::<IVRDriverContextVtable>::get(&context)) as *const _,
-		)
+		if let Err(err) = prepare_hmd() {
+			error!("failed to prepare vive pro 2 display: {err}");
+		}
+		EVRInitError::VRInitError_None
 	}
 
 	fn Cleanup(&self) {
-		self.real.Cleanup();
 		info!("disconnecting from base stations");
 		let _runtime = TOKIO_RUNTIME.enter();
 		let localset = LocalSet::new();
@@ -105,19 +122,16 @@ impl IServerTrackedDeviceProvider for ServerTrackedProvider {
 	}
 
 	fn GetInterfaceVersions(&self) -> *const *const c_char {
-		self.real.GetInterfaceVersions()
+		INTERFACE_VERSIONS.0.as_ptr()
 	}
 
-	fn RunFrame(&self) {
-		self.real.RunFrame()
-	}
+	fn RunFrame(&self) {}
 
 	fn ShouldBlockStandbyMode(&self) -> bool {
 		false
 	}
 
 	fn EnterStandby(&self) {
-		self.real.EnterStandby();
 		info!("making station standby");
 		for station in self.stations.lock().expect("lock").iter_mut() {
 			station.send(StationCommand::SetState(
@@ -127,7 +141,6 @@ impl IServerTrackedDeviceProvider for ServerTrackedProvider {
 	}
 
 	fn LeaveStandby(&self) {
-		self.real.LeaveStandby();
 		info!("waking up base stations");
 		for station in self.stations.lock().expect("lock").iter_mut() {
 			station.send(StationCommand::SetState(StationState::On))
@@ -138,14 +151,7 @@ impl IServerTrackedDeviceProvider for ServerTrackedProvider {
 pub static SERVER_TRACKED_DEVICE_PROVIDER: Lazy<WithVtables<ServerTrackedProvider>> =
 	Lazy::new(|| {
 		info!("intializing server tracker provider");
-		let real = unsafe {
-			let factory = get_hmd_driver_factory().expect("factory should exist");
-			try_vr!(factory(IServerTrackedDeviceProvider_Version))
-				.expect("failed to obtain tracked device provider from factory")
-		};
-
 		WithVtables::new(ServerTrackedProvider {
-			real: unsafe { VtableRef::from_raw(real as *const _) },
 			stations: Mutex::new(vec![]),
 			standby_state: Mutex::new(StationState::Unknown),
 		})
